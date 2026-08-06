@@ -1,0 +1,15 @@
+# Hand-mapped ATS board tokens for target companies: {company name: {ats, token}}.
+# The resolver checks this first, then falls back to slug guessing.
+# Add rows as you discover them — the hand map is always more reliable.
+#
+# Find a token by opening a company's careers page and reading the URL:
+#   boards.greenhouse.io/<token>       job-boards.greenhouse.io/<token>
+#   jobs.lever.co/<token>              jobs.ashbyhq.com/<token>
+
+# Example entries (verify before trusting):
+# Affirm:
+#   ats: greenhouse
+#   token: affirm
+# Databricks:
+#   ats: greenhouse
+#   token: databricks

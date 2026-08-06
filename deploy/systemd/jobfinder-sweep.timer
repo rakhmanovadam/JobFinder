@@ -1,0 +1,25 @@
+[Unit]
+Description=JobFinder sweep schedule (8 passes/day, ~3h apart)
+
+[Timer]
+# Same 8 off-round slots as the macOS launchd plist. Requires the host
+# timezone to be America/New_York (bootstrap.sh sets it).
+OnCalendar=*-*-* 01:17:00
+OnCalendar=*-*-* 04:23:00
+OnCalendar=*-*-* 07:11:00
+OnCalendar=*-*-* 10:38:00
+OnCalendar=*-*-* 13:07:00
+OnCalendar=*-*-* 16:44:00
+OnCalendar=*-*-* 19:29:00
+OnCalendar=*-*-* 22:52:00
+
+# Jitter so passes never land on the exact same second each day.
+RandomizedDelaySec=300
+
+# If the box was down at slot time, run once on boot rather than skipping.
+Persistent=true
+
+Unit=jobfinder-sweep.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jobfinder.sweep</string>
+
+  <!-- caffeinate keeps the Mac awake for the ~100 min drip pass -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>/Users/adamrakhmanov08/JobFinder/.venv/bin/python</string>
+    <string>-m</string>
+    <string>orchestrator</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/adamrakhmanov08/JobFinder</string>
+
+  <!-- every 3 hours; orchestrator itself thins overnight runs to 30% -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>1</integer><key>Minute</key><integer>17</integer></dict>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>23</integer></dict>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>11</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>38</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>7</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>44</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>29</integer></dict>
+    <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>52</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/adamrakhmanov08/JobFinder/sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/adamrakhmanov08/JobFinder/sweep.log</string>
+</dict>
+</plist>

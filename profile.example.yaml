@@ -1,0 +1,49 @@
+# Copy to profile.yaml and fill in. NEVER commit profile.yaml — it carries
+# personal contact details and legal/demographic answers.
+#
+# Answers used to fill ATS application forms.
+# Anything left null is NEVER guessed — the applier routes the application to
+# needs_manual instead, and you finish that one form by hand.
+
+name: ""
+legal_first_name: ""
+preferred_first_name: ""
+last_name: ""
+email: ""
+phone: ""
+
+location:
+  city: ""
+  state: ""
+  country: "United States"
+  postal_code: null
+
+links:
+  linkedin: null
+  website: null
+  github: null
+  portfolio: null
+
+# Legal facts. Never guessed, never inferred.
+work_auth:
+  authorized_to_work_us: null      # true / false
+  requires_sponsorship: null       # true / false
+  visa_status: null                # free text, optional
+
+education_level: null              # e.g. "Some college"
+current_school: null
+graduation_year: null
+
+# Optional demographic questions. "Decline to self-identify" is a valid answer
+# everywhere and is the safe default if you'd rather not answer.
+eeo:
+  gender: null
+  race_ethnicity: null
+  veteran_status: null
+  disability_status: null
+
+preferences:
+  earliest_start_date: null        # e.g. "2026-06-01"
+  desired_salary: null             # leave null -> routed to you
+  willing_to_relocate: null        # true / false
+  how_did_you_hear: "LinkedIn"

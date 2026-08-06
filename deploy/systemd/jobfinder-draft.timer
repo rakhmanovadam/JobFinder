@@ -1,0 +1,13 @@
+[Unit]
+Description=JobFinder draft schedule (every 30 min)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+RandomizedDelaySec=120
+Persistent=true
+
+Unit=jobfinder-draft.service
+
+[Install]
+WantedBy=timers.target

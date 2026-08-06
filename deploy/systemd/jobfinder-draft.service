@@ -1,0 +1,15 @@
+[Unit]
+Description=JobFinder draft pass (matched jobs -> tailored resume -> Telegram card)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/JobFinder
+ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m draft --limit 6
+
+TimeoutStartSec=1500
+
+StandardOutput=journal
+StandardError=journal

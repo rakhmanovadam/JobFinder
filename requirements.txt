@@ -1,0 +1,10 @@
+camoufox[geoip]
+playwright
+openai
+supabase
+rapidfuzz
+python-telegram-bot[callback-data]
+pydantic
+pyyaml
+httpx
+python-dotenv

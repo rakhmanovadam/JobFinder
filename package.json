@@ -1,0 +1,9 @@
+{
+  "name": "jobfinder",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Resume rendering for the auto-apply job agent",
+  "dependencies": {
+    "docx": "^9.0.0"
+  }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=JobFinder LinkedIn drip sweep (one pass)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/JobFinder
+ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m orchestrator
+
+# A pass is 13 keywords with 5-10 min gaps: ~75-110 min. Allow 3h, then kill.
+TimeoutStartSec=10800
+
+StandardOutput=journal
+StandardError=journal

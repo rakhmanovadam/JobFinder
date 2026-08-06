@@ -1,0 +1,20 @@
+[Unit]
+Description=JobFinder Telegram bot (approve/skip loop)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/JobFinder
+ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m tg.callbacks
+
+# Equivalent of launchd KeepAlive: a dead bot loses taps, so always come back.
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

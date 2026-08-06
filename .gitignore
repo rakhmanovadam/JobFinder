@@ -1,0 +1,20 @@
+.env
+.venv/
+li_profile/
+li_profile.bak/
+__pycache__/
+*.pyc
+node_modules/
+out/
+*.pdf
+*.docx
+screenshots/
+tailor/resume_data.json
+
+# personal contact details + legal/EEO answers — see profile.example.yaml
+profile.yaml
+
+# runtime noise
+*.log
+.sweep.lock
+debug_search.png
