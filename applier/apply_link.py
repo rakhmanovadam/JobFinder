@@ -9,6 +9,7 @@ If the session is dead, this returns None and the application routes to
 needs_manual — discovery is unaffected either way.
 """
 import re
+from urllib.parse import parse_qs, unquote, urlparse
 
 from camoufox.sync_api import Camoufox
 
@@ -16,6 +17,27 @@ from config import PROXY, PROFILE_DIR
 from linkedin.discovery import _clear_stale_profile_lock
 
 APPLY_BTN = re.compile(r"(?i)apply|continue")
+
+
+def _dest_from_href(href: str | None) -> str | None:
+    """LinkedIn wraps offsite applies as /safety/go/?url=<encoded real url>, so the
+    destination can be read straight off the anchor — no click, no popup, no extra
+    page load. Falls back to a plain external href."""
+    if not href:
+        return None
+    if "/safety/go/" in href:
+        q = parse_qs(urlparse(href).query).get("url", [])
+        return unquote(q[0]) if q else None
+    return href if "linkedin.com" not in href else None
+
+
+def _logged_in(page) -> bool:
+    """LinkedIn's authenticated chrome. #global-nav is stale — the current DOM
+    exposes the 'Me' menu button instead."""
+    return (
+        page.locator("button:has-text('Me')").count() > 0
+        or page.locator("#global-nav, .global-nav").count() > 0
+    )
 
 
 def resolve_apply_url(job_id: str, timeout_ms: int = 30000) -> str | None:
@@ -29,11 +51,21 @@ def resolve_apply_url(job_id: str, timeout_ms: int = 30000) -> str | None:
         ) as browser:
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(6000)
 
             # Logged out -> the apply control is never rendered.
-            if page.locator("#global-nav").count() == 0:
+            if not _logged_in(page):
+                print(f"   [apply_link] session not authenticated for {job_id}")
                 return None
+
+            # Preferred path: read the destination off the anchor.
+            anchors = page.locator("a:has-text('Apply')")
+            for i in range(min(anchors.count(), 4)):
+                a = anchors.nth(i)
+                if (a.inner_text() or "").strip().lower().startswith("apply"):
+                    dest = _dest_from_href(a.get_attribute("href"))
+                    if dest:
+                        return dest
 
             btn = page.get_by_role("button", name=APPLY_BTN)
             link = page.locator("a[href][class*='apply'], a[data-tracking-control-name*='apply']")
