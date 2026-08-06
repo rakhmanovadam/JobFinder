@@ -7,6 +7,7 @@ Prints parsed cards as JSON lines. Hard-stops the whole sweep on any
 checkpoint/authwall.
 """
 import json
+import os
 import random
 import re
 import time
@@ -114,6 +115,37 @@ def extract_guest_cards(page) -> list[dict]:
             continue
     print(f"parsed {len(cards)} of {total} visible cards (guest)")
     return cards
+
+
+def _profile_has_live_session(headless: bool = True) -> bool:
+    """Cheap pre-flight: does the stored profile still hold a valid li_at?
+
+    Reads the cookie jar first (no request at all), and only opens a page when
+    the cookie is present — so a dead session costs zero LinkedIn traffic.
+    """
+    import sqlite3
+    import shutil
+    import tempfile
+
+    src = os.path.join(PROFILE_DIR, "cookies.sqlite")
+    if not os.path.exists(src):
+        return False
+    try:
+        tmp = tempfile.mktemp()
+        shutil.copy(src, tmp)
+        for ext in ("-wal", "-shm"):
+            if os.path.exists(src + ext):
+                shutil.copy(src + ext, tmp + ext)
+        names = {
+            r[0]
+            for r in sqlite3.connect(tmp).execute(
+                "select name from moz_cookies where host like '%linkedin%'"
+            )
+        }
+        return "li_at" in names
+    except Exception as e:
+        print("   session pre-flight failed:", e)
+        return False
 
 
 def _session_alive(page) -> bool:
@@ -269,6 +301,16 @@ def sweep(
     # Occasionally drop a keyword or two — humans aren't exhaustive.
     if len(specs) > 3 and random.random() < 0.35:
         specs = specs[: len(specs) - random.randint(1, 2)]
+
+    # A dead li_at leaves a li_rm behind, and LinkedIn answers that profile with
+    # /authwall instead of the public SERP — so a stale session doesn't just
+    # lose the f_WT filter, it takes discovery down entirely. Check before
+    # committing to the authenticated path and fall back to a clean guest
+    # profile, which is never authwalled.
+    if not guest and not _profile_has_live_session(headless=headless):
+        print("   !! LinkedIn session is dead — running this pass in guest mode "
+              "(workplace filter will NOT apply)")
+        guest = True
 
     seen = set()
     authed_ok = not guest
