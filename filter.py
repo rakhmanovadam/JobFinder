@@ -65,8 +65,17 @@ def store_cards(cards: list[dict]) -> dict:
     """Filter, dedupe-insert. Returns counts + newly inserted matched rows."""
     db = get_db()
     matched_rows = []
+    unfiltered = 0
     for c in cards:
         target, persona, score = match_title(c["title"])
+        # Only the authenticated SERP honours f_WT. If the session dropped, the
+        # results are unfiltered by workplace type, so a title match no longer
+        # implies the job is remote (or Durham-local). Store it as seen, but
+        # don't promote it — silently surfacing on-site roles is worse than
+        # surfacing none.
+        trusted = c.get("wt_filtered", True)
+        if persona and not trusted:
+            unfiltered += 1
         row = {
             "source": "linkedin",
             "external_id": c["external_id"],
@@ -76,7 +85,7 @@ def store_cards(cards: list[dict]) -> dict:
             "remote": "remote" in (c.get("location") or "").lower(),
             "posted_at": parse_posted(c.get("posted", "")),
             "persona": persona,
-            "matched": persona is not None,
+            "matched": persona is not None and trusted,
             "match_score": score,
             "apply_lane": "easy_apply" if c.get("easy_apply") else None,
         }
@@ -85,9 +94,10 @@ def store_cards(cards: list[dict]) -> dict:
             .upsert(row, on_conflict="source,external_id", ignore_duplicates=True)
             .execute()
         )
-        if res.data and persona:  # data non-empty only when actually inserted
+        if res.data and persona and trusted:  # data non-empty only when inserted
             matched_rows.append({**row, "link": c["link"]})
     return {
         "found": len(cards),
         "new_matched": matched_rows,
+        "unfiltered_skipped": unfiltered,
     }

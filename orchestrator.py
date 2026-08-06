@@ -73,21 +73,33 @@ def run_cycle(force: bool = False, fast: bool = False):
         print("paused — skipping cycle")
         return
 
-    total_found, total_new = 0, []
+    total_found, total_new, total_unfiltered = 0, [], 0
     kwargs = {"gap": (12, 35)} if fast else {}
-    for keyword, cards in sweep(**kwargs):  # guest mode — no login, no ban risk
+    # Authenticated: only the logged-in SERP honours f_WT (remote / on-site),
+    # which the guest endpoint accepts and ignores. sweep() degrades to the
+    # guest shape by itself if the session drops, and marks those cards so
+    # store_cards refuses to promote them.
+    for keyword, cards in sweep(guest=False, **kwargs):
         result = store_cards(cards)
         total_found += result["found"]
+        total_unfiltered += result.get("unfiltered_skipped", 0)
         new = result["new_matched"]
         total_new.extend(new)
         if new:
             notify_matches(keyword, new)
         print(f"  {keyword}: {result['found']} cards, {len(new)} new matches")
 
-    send(
+    msg = (
         f"✅ Sweep done · scanned {total_found} cards · "
         f"{len(total_new)} new match(es) this pass"
     )
+    if total_unfiltered:
+        msg += (
+            f"\n⚠️ {total_unfiltered} title match(es) held back — the LinkedIn "
+            "session dropped mid-pass, so remote/on-site filtering did not "
+            "apply. Re-run the login to restore it."
+        )
+    send(msg)
     db.table("run_log").insert(
         {
             "found": total_found,

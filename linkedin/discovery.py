@@ -116,6 +116,43 @@ def extract_guest_cards(page) -> list[dict]:
     return cards
 
 
+def _session_alive(page) -> bool:
+    """Authenticated chrome. #global-nav is stale in LinkedIn's current DOM —
+    the 'Me' menu is the reliable marker."""
+    try:
+        return (
+            page.locator("button:has-text('Me')").count() > 0
+            or page.locator("#global-nav, .global-nav").count() > 0
+        )
+    except Exception:
+        return False
+
+
+def _browse_like_a_human(page) -> None:
+    """Reading behaviour, not a fetch loop: variable scroll depth and speed,
+    occasional scroll-back, sometimes a hover over a card. Cheap, and it makes
+    the request cadence look less like a script."""
+    for _ in range(random.randint(1, 4)):
+        page.mouse.wheel(0, random.randint(300, 1400))
+        human_pause(1.2, 4.5)
+
+    # People scroll back up to re-read something ~30% of the time.
+    if random.random() < 0.3:
+        page.mouse.wheel(0, -random.randint(200, 700))
+        human_pause(1.0, 3.0)
+
+    # And sometimes rest the pointer on a listing before moving on.
+    if random.random() < 0.45:
+        try:
+            cards = page.locator("li[data-occludable-job-id], div.base-card")
+            n = cards.count()
+            if n:
+                cards.nth(random.randrange(min(n, 8))).hover(timeout=3000)
+                human_pause(0.8, 2.5)
+        except Exception:
+            pass
+
+
 def extract_job_cards(page) -> list[dict]:
     """Parse visible job cards. Tolerant of DOM drift: each card wrapped in
     try/except, cards without a jobId are skipped, returns parsed subset."""
@@ -234,6 +271,7 @@ def sweep(
         specs = specs[: len(specs) - random.randint(1, 2)]
 
     seen = set()
+    authed_ok = not guest
     cf_kwargs = dict(headless=headless, humanize=True, geoip=True, proxy=PROXY)
     if not guest:
         _clear_stale_profile_lock()
@@ -257,15 +295,26 @@ def sweep(
                 _alert_checkpoint(page)
                 return
 
-            # Variable reading behavior: 0-3 scrolls, differing depths/speeds.
-            for _ in range(random.randint(0, 3)):
-                page.mouse.wheel(0, random.randint(400, 1500))
-                human_pause(1.5, 4.5)
+            # Authenticated mode is the only one where f_WT (remote/on-site) is
+            # honoured — the guest endpoint accepts the parameter and ignores it.
+            # So losing the session mid-sweep silently changes what the results
+            # mean; note it on every card rather than letting on-site jobs pass
+            # as if they had been filtered.
+            wt_applied = True
+            if not guest and not _session_alive(page):
+                wt_applied = False
+                if authed_ok:
+                    print("   !! session not authenticated — workplace filter no "
+                          "longer applies; continuing in guest shape")
+                    authed_ok = False
+
+            _browse_like_a_human(page)
 
             fresh = []
             for c in extract_job_cards(page):
                 if c["external_id"] not in seen:
                     seen.add(c["external_id"])
+                    c["wt_filtered"] = wt_applied
                     fresh.append(c)
             yield kw, fresh
 
