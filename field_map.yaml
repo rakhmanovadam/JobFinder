@@ -26,6 +26,10 @@ text_fields:
   - {pattern: "(?i)notice period",                   path: "preferences.notice_period_days"}
   - {pattern: "(?i)hours.*(per|a) week|weekly availability", path: "preferences.hours_per_week_available"}
   - {pattern: "(?i)(work arrangement|remote.*preference|onsite.*preference)", path: "preferences.work_arrangement"}
+  - {pattern: "(?i)(major|field of study|course of study|discipline)", path: "field_of_study"}
+  - {pattern: "(?i)travel.*(percent|%)",             path: "preferences.travel_percentage"}
+  - {pattern: "(?i)(hourly rate|rate.*hour|pay rate)", path: "preferences.desired_hourly_rate"}
+  - {pattern: "(?i)(referred by|referral)",          path: "eligibility.referral_name"}
 
 # Boolean questions: the profile value is true/false, mapped onto the form's
 # own option strings at fill time.
@@ -38,6 +42,15 @@ boolean_fields:
   - {pattern: "(?i)security clearance",                       path: "eligibility.security_clearance"}
   - {pattern: "(?i)background (check|screen)",                path: "eligibility.background_check_consent"}
   - {pattern: "(?i)(previously|ever).*(work|employ).*(here|for (us|this|our))", path: "eligibility.worked_here_before"}
+  - {pattern: "(?i)drug (screen|test)",                       path: "eligibility.drug_screen_consent"}
+  - {pattern: "(?i)reliable transportation",                  path: "eligibility.reliable_transportation"}
+  - {pattern: "(?i)(relative|family member).*(employ|work)",  path: "eligibility.relatives_employed_here"}
+  - {pattern: "(?i)non-?compete|non-?solicit",                path: "eligibility.non_compete"}
+  - {pattern: "(?i)(terminated|asked to resign|dismissed)",   path: "eligibility.ever_terminated"}
+  - {pattern: "(?i)applied.*(before|previously|in the past)", path: "eligibility.applied_here_before"}
+  - {pattern: "(?i)willing.*travel|able.*travel",             path: "preferences.willing_to_travel"}
+  - {pattern: "(?i)(nights|weekends|evening).*(work|available)|work.*(nights|weekends)", path: "preferences.nights_weekends_ok"}
+  - {pattern: "(?i)currently enrolled",                       path: "currently_enrolled"}
 
 # Demographic dropdowns: profile value must match one of the form's options,
 # otherwise the field is left to the AI layer / manual routing.

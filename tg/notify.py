@@ -39,6 +39,60 @@ def send_document(path: str, caption: str = "") -> dict | None:
     return r.json() if r.status_code == 200 else None
 
 
+def send_photo(path: str, caption: str = "", reply_markup: dict | None = None) -> dict | None:
+    if not TELEGRAM_CHAT_ID:
+        return None
+    data = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption[:1024], "parse_mode": "HTML"}
+    if reply_markup:
+        import json as _json
+        data["reply_markup"] = _json.dumps(reply_markup)
+    with open(path, "rb") as f:
+        r = httpx.post(f"{API}/sendPhoto", data=data, files={"photo": f}, timeout=60)
+    if r.status_code != 200:
+        print("sendPhoto failed:", r.text[:200])
+        return None
+    return r.json()
+
+
+def send_apply_preview(job: dict, app_row: dict, result: dict) -> dict | None:
+    """Filled-form screenshot + what was entered + Submit/Cancel buttons.
+
+    Nothing is submitted until the ✅ comes back, so a wrong answer costs a tap
+    rather than a real application under the user's name.
+    """
+    e = html.escape
+    lines = [
+        f"📝 <b>Ready to submit</b>",
+        f"<b>{e(job.get('company') or '?')}</b> — {e(job.get('title') or '?')}",
+        "",
+        e(result.get("detail", "")),
+        "",
+    ]
+    for a in (result.get("answers") or [])[:14]:
+        lines.append(f"• <b>{e(a['label'])}</b>: {e(a['value'])}")
+    extra = len(result.get("answers") or []) - 14
+    if extra > 0:
+        lines.append(f"• …and {extra} more")
+    lines.append("")
+    lines.append("Submit this application?")
+
+    kb = {"inline_keyboard": [[
+        {"text": "✅ Submit", "callback_data": f"sub:{app_row['id']}"},
+        {"text": "❌ Cancel", "callback_data": f"nosub:{app_row['id']}"},
+    ]]}
+
+    shot = result.get("screenshot")
+    caption = "\n".join(lines)
+    if shot:
+        # Telegram caps captions at 1024 chars; long field lists go as a
+        # follow-up message so nothing is silently truncated away.
+        if len(caption) <= 1024:
+            return send_photo(shot, caption, kb)
+        send_photo(shot, f"📝 <b>Ready to submit</b>\n{e(job.get('company') or '?')} — {e(job.get('title') or '?')}")
+        return send(caption, kb)
+    return send(caption, kb)
+
+
 def alert(text: str):
     try:
         send(text)

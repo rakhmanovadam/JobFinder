@@ -115,6 +115,46 @@ def enumerate_fields(page) -> list[dict]:
                 options,
             });
         }
+
+        // Button-group questions (Ashby/Greenhouse render Yes/No as a pair of
+        // <button>s, which the input/select/textarea sweep above never sees).
+        // Tag the container so the filler can find it again without relying on
+        // text position.
+        let gi = 0;
+        const groups = new Set();
+        for (const btn of document.querySelectorAll('button')) {
+            if (btn.disabled || btn.offsetParent === null) continue;
+            const t = clean(btn.textContent);
+            if (!t || t.length > 24) continue;
+            const box = btn.parentElement;
+            if (!box || groups.has(box)) continue;
+
+            const kids = Array.from(box.querySelectorAll('button'))
+                .filter(b => !b.disabled && b.offsetParent !== null);
+            const texts = kids.map(b => clean(b.textContent)).filter(x => x && x.length <= 24);
+            // A real choice group: 2-5 short-labelled buttons, all distinct.
+            if (texts.length < 2 || texts.length > 5) continue;
+            if (new Set(texts).size !== texts.length) continue;
+
+            const label = labelFor(box).slice(0, 160);
+            if (!label) continue;
+            const key = `${label}|buttongroup`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            groups.add(box);
+
+            const gid = 'jf-grp-' + (gi++);
+            box.setAttribute('data-jf-group', gid);
+            out.push({
+                label,
+                name: gid,
+                id: '',
+                type: 'buttongroup',
+                required: box.closest('[class*="required"]') !== null
+                          || /\\*/.test(label),
+                options: texts,
+            });
+        }
         return out;
     }"""
     )
@@ -122,6 +162,10 @@ def enumerate_fields(page) -> list[dict]:
 
 def _locate(page, field: dict):
     """Best-effort locator for an enumerated field."""
+    if field.get("type") == "buttongroup":
+        # enumerate_fields tagged the container with data-jf-group.
+        loc = page.locator(f'[data-jf-group="{field["name"]}"]')
+        return loc.first if loc.count() else None
     if field.get("id"):
         # ids can start with a digit (Greenhouse uses numeric ids), which is a
         # valid DOM id but an invalid CSS selector — use the attribute form.

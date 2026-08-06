@@ -42,6 +42,25 @@ def _fill_field(page, name: str, entry: dict) -> bool:
                 return False
             opt.first.click(timeout=3000)
             page.wait_for_timeout(200)
+        elif f["type"] == "buttongroup":
+            # Click the option button whose text matches; exact first so "No"
+            # never matches "Not applicable".
+            btns = loc.locator("button")
+            target = None
+            for i in range(btns.count()):
+                if (btns.nth(i).inner_text() or "").strip().lower() == str(value).strip().lower():
+                    target = btns.nth(i)
+                    break
+            if target is None:
+                for i in range(btns.count()):
+                    if str(value).strip().lower() in (btns.nth(i).inner_text() or "").strip().lower():
+                        target = btns.nth(i)
+                        break
+            if target is None:
+                return False
+            target.scroll_into_view_if_needed(timeout=3000)
+            target.click(timeout=3000)
+            page.wait_for_timeout(200)
         elif f["type"] in ("radio", "checkbox"):
             page.locator(f'[name="{f["name"]}"][value="{value}"]').first.check()
         else:
@@ -92,6 +111,17 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                     page.wait_for_timeout(2000)
                     break
 
+            # Upload the résumé FIRST: boards like Ashby run an "autofill from
+            # resume" pass that overwrites whatever is already in the inputs, so
+            # filling before uploading silently loses every answer.
+            uploaded = False
+            if resume and Path(resume).exists():
+                fi = page.locator('input[type="file"]').first
+                if fi.count():
+                    fi.set_input_files(resume)
+                    uploaded = True
+                    page.wait_for_timeout(4000)
+
             fields = enumerate_fields(page)
             if not fields:
                 return {"status": "needs_manual", "detail": "no form fields found"}
@@ -110,22 +140,22 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
 
             filled = sum(_fill_field(page, n, e) for n, e in answers.items())
 
-            uploaded = False
-            if resume and Path(resume).exists():
-                fi = page.locator('input[type="file"]').first
-                if fi.count():
-                    fi.set_input_files(resume)
-                    uploaded = True
-                    page.wait_for_timeout(2500)
-
             page.screenshot(path=str(shot_path), full_page=True)
 
+            # What went into the form, for the confirmation card. Kept as data
+            # so the Telegram layer can render it without re-deriving anything.
+            summary = [
+                {"label": e["field"]["label"][:70], "value": str(e["value"])[:70]}
+                for e in answers.values()
+            ]
             if dry_run:
                 return {
-                    "status": "needs_manual",
-                    "detail": f"dry run — filled {filled}/{len(answers)}, "
-                              f"resume uploaded: {uploaded}",
+                    "status": "preview",
+                    "detail": f"filled {filled}/{len(answers)} field(s), "
+                              f"résumé uploaded: {uploaded}",
                     "screenshot": str(shot_path),
+                    "answers": summary,
+                    "url": url,
                 }
 
             submit = None

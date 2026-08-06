@@ -113,9 +113,58 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ).execute()
         await respond(
             f"✅ Approved — {html.escape(job.get('title', ''))} @ "
-            f"{html.escape(job.get('company', ''))}\n<i>applying…</i>"
+            f"{html.escape(job.get('company', ''))}\n<i>filling the form…</i>"
+        )
+        asyncio.create_task(run_preview(app_id, q))
+        return
+
+    if action == "nosub":
+        get_db().table("applications").update({"status": "skipped"}).eq(
+            "id", app_id
+        ).execute()
+        await respond("❌ Cancelled — nothing was submitted.")
+        return
+
+    if action == "sub":
+        if get_control("paused") is True:
+            await q.message.reply_text("⏸ paused — /resume first")
+            return
+        if applies_today() >= MAX_APPLIES_PER_DAY:
+            await q.message.reply_text(f"🚦 daily cap reached ({MAX_APPLIES_PER_DAY})")
+            return
+        await q.message.reply_text(
+            f"📤 Submitting — {html.escape(job.get('company', ''))} · "
+            f"{html.escape(job.get('title', ''))}"
         )
         asyncio.create_task(run_applier(app_id, q))
+        return
+
+
+async def run_preview(app_id: str, q):
+    """Fill the form and send it back for confirmation. Submits nothing."""
+    from applier.ats import apply_to_job
+    from tg.notify import send_apply_preview
+
+    app = get_app(app_id)
+    job = get_job(app["job_id"])
+    try:
+        result = await asyncio.to_thread(apply_to_job, job, app, True)
+    except Exception as e:
+        result = {"status": "failed", "detail": f"{type(e).__name__}: {e}"}
+
+    if result.get("status") == "preview":
+        await asyncio.to_thread(send_apply_preview, job, app, result)
+        return
+
+    # Couldn't fill it — hand the user the link rather than guessing.
+    get_db().table("applications").update(
+        {"status": "needs_manual", "error": result.get("detail")}
+    ).eq("id", app_id).execute()
+    link = job.get("ats_url") or f"https://www.linkedin.com/jobs/view/{job['external_id']}/"
+    await q.message.reply_text(
+        f"⚠️ Needs you — {job['company']} · {job['title']}\n"
+        f"{result.get('detail', '')}\n{link}"
+    )
 
 
 async def run_applier(app_id: str, q):
