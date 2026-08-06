@@ -21,6 +21,11 @@ text_fields:
   - {pattern: "(?i)(desired|expected).*(salary|compensation)", path: "preferences.desired_salary"}
   - {pattern: "(?i)(start date|available.*start|earliest.*start)", path: "preferences.earliest_start_date"}
   - {pattern: "(?i)how did you hear",                path: "preferences.how_did_you_hear"}
+  - {pattern: "(?i)pronoun",                         path: "pronouns"}
+  - {pattern: "(?i)(street|address line 1|mailing address)", path: "location.street_address"}
+  - {pattern: "(?i)notice period",                   path: "preferences.notice_period_days"}
+  - {pattern: "(?i)hours.*(per|a) week|weekly availability", path: "preferences.hours_per_week_available"}
+  - {pattern: "(?i)(work arrangement|remote.*preference|onsite.*preference)", path: "preferences.work_arrangement"}
 
 # Boolean questions: the profile value is true/false, mapped onto the form's
 # own option strings at fill time.
@@ -28,6 +33,11 @@ boolean_fields:
   - {pattern: "(?i)(authorized|eligible).*(work|employment)", path: "work_auth.authorized_to_work_us"}
   - {pattern: "(?i)(require|need).*(sponsorship|visa)",       path: "work_auth.requires_sponsorship"}
   - {pattern: "(?i)willing.*(relocate|relocation)",           path: "preferences.willing_to_relocate"}
+  - {pattern: "(?i)(18 years|age of 18|at least 18|older)",   path: "eligibility.age_18_or_over"}
+  - {pattern: "(?i)driver'?s? licen[sc]e",                    path: "eligibility.drivers_license"}
+  - {pattern: "(?i)security clearance",                       path: "eligibility.security_clearance"}
+  - {pattern: "(?i)background (check|screen)",                path: "eligibility.background_check_consent"}
+  - {pattern: "(?i)(previously|ever).*(work|employ).*(here|for (us|this|our))", path: "eligibility.worked_here_before"}
 
 # Demographic dropdowns: profile value must match one of the form's options,
 # otherwise the field is left to the AI layer / manual routing.

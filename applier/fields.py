@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from config import OPENAI_API_KEY, FIELD_MODEL
 from db import get_db
+from usage import record
 
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE = yaml.safe_load((ROOT / "profile.yaml").read_text())
@@ -308,6 +309,7 @@ def ai_resolve(field: dict):
                     }
                 },
             )
+            record(FIELD_MODEL, r, "field_choice")
             import json
 
             out = json.loads(r.output_text)
@@ -318,6 +320,7 @@ def ai_resolve(field: dict):
             input=[{"role": "user", "content": base}],
             text_format=Mapped,
         )
+        record(FIELD_MODEL, r, "field_text")
         out = r.output_parsed
         if out.confident and out.value:
             return out.value, "ai"

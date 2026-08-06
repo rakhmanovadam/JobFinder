@@ -1,0 +1,15 @@
+[Unit]
+Description=JobFinder end-of-day summary (applications + spend) to Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/JobFinder
+ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m digest
+
+TimeoutStartSec=300
+
+StandardOutput=journal
+StandardError=journal

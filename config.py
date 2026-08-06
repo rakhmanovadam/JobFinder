@@ -31,6 +31,27 @@ if _proxy_server:
 else:
     PROXY = None
 
+# USD per 1M tokens, per model. Set the real rates from your OpenAI dashboard —
+# a model absent here is logged with token counts but priced at 0, and the daily
+# digest reports how many such calls it saw rather than quietly under-reporting.
+def _price(var: str, default: float) -> float:
+    return float(os.environ.get(var, default))
+
+
+MODEL_PRICES = {
+    TAILOR_MODEL: {
+        "input": _price("TAILOR_PRICE_IN", 1.25),
+        "output": _price("TAILOR_PRICE_OUT", 10.0),
+    },
+    FIELD_MODEL: {
+        "input": _price("FIELD_PRICE_IN", 0.25),
+        "output": _price("FIELD_PRICE_OUT", 2.0),
+    },
+}
+
+# Hour to send the end-of-day digest, local time (0-23).
+DIGEST_HOUR = int(os.environ.get("DIGEST_HOUR", "21"))
+
 MAX_APPLIES_PER_HOUR = int(os.environ.get("MAX_APPLIES_PER_HOUR", "8"))
 MAX_APPLIES_PER_DAY = int(os.environ.get("MAX_APPLIES_PER_DAY", "40"))
 

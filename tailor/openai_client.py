@@ -6,6 +6,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from config import OPENAI_API_KEY, TAILOR_MODEL
+from usage import record
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -75,7 +76,7 @@ def build_prompt(jd_text: str, master_slice: dict) -> str:
     )
 
 
-def tailor(jd_text: str, master: dict, persona: str) -> Tailored:
+def tailor(jd_text: str, master: dict, persona: str, job_id: str | None = None) -> Tailored:
     master_slice = _slice_master(master, persona)
     r = client.responses.parse(
         model=TAILOR_MODEL,
@@ -85,4 +86,5 @@ def tailor(jd_text: str, master: dict, persona: str) -> Tailored:
         ],
         text_format=Tailored,
     )
+    record(TAILOR_MODEL, r, "tailor", job_id)
     return r.output_parsed

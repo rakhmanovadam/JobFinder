@@ -1,0 +1,14 @@
+[Unit]
+Description=JobFinder daily summary schedule (21:00 local)
+
+[Timer]
+# Host timezone is America/New_York (set by bootstrap.sh).
+OnCalendar=*-*-* 21:00:00
+
+# If the box was down at 21:00, still send the summary on next boot.
+Persistent=true
+
+Unit=jobfinder-digest.service
+
+[Install]
+WantedBy=timers.target

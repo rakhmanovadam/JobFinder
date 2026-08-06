@@ -58,6 +58,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now jobfinder-bot.service
 sudo systemctl enable --now jobfinder-sweep.timer
 sudo systemctl enable --now jobfinder-draft.timer
+sudo systemctl enable --now jobfinder-digest.timer
 
 echo
 echo "done. check with:"
