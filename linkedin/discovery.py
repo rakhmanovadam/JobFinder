@@ -342,7 +342,9 @@ def sweep(
             # So losing the session mid-sweep silently changes what the results
             # mean; note it on every card rather than letting on-site jobs pass
             # as if they had been filtered.
-            wt_applied = True
+            # Guest results are NEVER workplace-filtered — the endpoint ignores
+            # f_WT — so the flag starts false unless we are genuinely logged in.
+            wt_applied = not guest
             if not guest and not _session_alive(page):
                 wt_applied = False
                 if authed_ok:
