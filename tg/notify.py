@@ -1,6 +1,7 @@
 """Fire-and-forget Telegram sends (used by the batch process). Plain HTTP —
 the always-on bot (tg/callbacks.py) owns polling and button handling."""
 import html
+import os
 
 import httpx
 
@@ -80,6 +81,18 @@ def send_apply_preview(job: dict, app_row: dict, result: dict) -> dict | None:
         {"text": "✅ Submit", "callback_data": f"sub:{app_row['id']}"},
         {"text": "❌ Cancel", "callback_data": f"nosub:{app_row['id']}"},
     ]]}
+
+    # Send the exact PDF that will be attached, first — so the résumé is on
+    # screen above the Submit button rather than described in text.
+    pdf = app_row.get("resume_pdf")
+    if pdf and os.path.exists(pdf):
+        send_document(
+            pdf,
+            f"Résumé that will be submitted — {job.get('company') or '?'} · "
+            f"{job.get('title') or '?'}",
+        )
+    else:
+        lines.insert(4, "⚠️ <b>No tailored résumé on file</b> — nothing will be attached.")
 
     shot = result.get("screenshot")
     caption = "\n".join(lines)
