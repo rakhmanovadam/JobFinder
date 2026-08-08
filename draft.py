@@ -11,6 +11,7 @@ from pathlib import Path
 
 from db import get_db
 from linkedin.jd import fetch_jd
+from linkedin.workplace import LOCAL
 from tailor.openai_client import tailor
 from tailor.validate import validate
 from tailor.render import render
@@ -62,7 +63,26 @@ def draft_one(job: dict) -> str:
         ).execute()
         job["apply_lane"] = "unresolved"
 
-    tailored = tailor(jd, MASTER, job["persona"])
+    tailored = tailor(jd, MASTER, job["persona"], job.get("id"))
+
+    # Workplace gate. LinkedIn's guest search accepts f_WT and ignores it, so
+    # "remote" searches return on-site jobs; this is where that filter actually
+    # happens. Durham-area on-site is fine — anywhere else is not.
+    wt = tailored.workplace_type
+    local = bool(LOCAL.search(job.get("location") or "")) or bool(
+        LOCAL.search(jd[:2000])
+    )
+    if wt in ("onsite", "hybrid") and not local:
+        db.table("jobs").update({"matched": False}).eq("id", job["id"]).execute()
+        db.table("applications").insert(
+            {
+                "job_id": job["id"],
+                "status": "skipped",
+                "error": f"{wt} outside Durham — {tailored.workplace_evidence[:160]}",
+            }
+        ).execute()
+        return f"skipped ({wt}, not local)"
+
     ok, problems = validate(tailored, MASTER)
     if not ok:
         db.table("applications").insert(

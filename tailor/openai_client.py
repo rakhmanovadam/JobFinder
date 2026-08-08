@@ -41,6 +41,13 @@ class Tailored(BaseModel):
     projects: list[Experience]
     skills: list[str]
     note: str
+    # LinkedIn's guest search ignores f_WT, so the workplace filter is rebuilt
+    # here. The model is already reading the whole JD; classifying it costs
+    # nothing extra and is far better than regex on postings that never use the
+    # word "remote". "unstated" is a real answer — guessing is worse than saying
+    # so, since the caller surfaces unstated jobs instead of dropping them.
+    workplace_type: Literal["remote", "hybrid", "onsite", "unstated"]
+    workplace_evidence: str
 
 
 def _slice_master(master: dict, persona: str) -> dict:
@@ -72,7 +79,16 @@ def build_prompt(jd_text: str, master_slice: dict) -> str:
         f"{json.dumps(master_slice, indent=2)}\n\n"
         "Produce the tailored résumé content. Keep it to what fits on one page: "
         "at most 3 experience entries and 3 projects, at most 4 bullets each, "
-        "and at most 12 skills."
+        "and at most 12 skills.\n\n"
+        "Also classify the job's workplace arrangement from the description:\n"
+        "  remote   — no regular presence at an office required\n"
+        "  hybrid   — some days on site, some remote\n"
+        "  onsite   — regular in-person presence required\n"
+        "  unstated — the description genuinely does not say\n"
+        "Use 'unstated' rather than inferring from the city or from the job "
+        "existing at all — a location alone is not evidence of the arrangement. "
+        "In workplace_evidence, quote the phrase you based this on, or write "
+        "'none' when unstated."
     )
 
 

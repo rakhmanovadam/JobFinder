@@ -85,7 +85,7 @@ def store_cards(cards: list[dict]) -> dict:
             "remote": "remote" in (c.get("location") or "").lower(),
             "posted_at": parse_posted(c.get("posted", "")),
             "persona": persona,
-            "matched": persona is not None and trusted,
+            "matched": persona is not None,
             "match_score": score,
             "apply_lane": "easy_apply" if c.get("easy_apply") else None,
         }
@@ -94,7 +94,7 @@ def store_cards(cards: list[dict]) -> dict:
             .upsert(row, on_conflict="source,external_id", ignore_duplicates=True)
             .execute()
         )
-        if res.data and persona and trusted:  # data non-empty only when inserted
+        if res.data and persona:  # data non-empty only when inserted
             matched_rows.append({**row, "link": c["link"]})
     return {
         "found": len(cards),
