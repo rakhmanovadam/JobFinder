@@ -15,8 +15,8 @@ from pathlib import Path
 
 from camoufox.sync_api import Camoufox
 
-from config import PROXY
 from applier.fields import enumerate_fields, hydrate_combobox_options, resolve_form
+from linkedin.identity import camoufox_kwargs
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "screenshots"
@@ -59,8 +59,7 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
     # Copy of the profile, not the profile: an apply must never be able to
     # clobber the sweep's session.
     with reader() as profile_dir, Camoufox(
-        headless=False, humanize=True, geoip=True, proxy=PROXY,
-        persistent_context=True, user_data_dir=profile_dir,
+        **camoufox_kwargs(profile_dir)
     ) as browser:
         page = browser.new_page()
         try:

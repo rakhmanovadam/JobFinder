@@ -15,7 +15,7 @@ import time
 
 from camoufox.sync_api import Camoufox
 
-from linkedin import profile_lease
+from linkedin import identity, profile_lease
 from config import (
     PROXY,
     PROFILE_DIR,
@@ -378,7 +378,6 @@ def sweep(
         )
 
     seen = set()
-    cf_kwargs = dict(headless=headless, humanize=True, geoip=True, proxy=PROXY)
 
     # The sweep is a WRITER: it wants LinkedIn's cookie refreshes to persist,
     # so it takes the real profile under an exclusive lock. Applies use a
@@ -392,7 +391,12 @@ def sweep(
     )
     with lease as profile_dir:
         if profile_dir:
-            cf_kwargs.update(persistent_context=True, user_data_dir=profile_dir)
+            # Pinned identity: every launch must present the same device, or
+            # LinkedIn reads the cookie as stolen and revokes the session.
+            cf_kwargs = identity.camoufox_kwargs(profile_dir, headless=headless)
+        else:
+            cf_kwargs = dict(headless=headless, humanize=True, geoip=True,
+                             proxy=PROXY)
         yield from _run_specs(cf_kwargs, specs, tpr, gap, guest, seen)
 
 

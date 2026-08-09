@@ -8,8 +8,7 @@ verified — there is no separate cp step to forget.
 """
 from camoufox.sync_api import Camoufox
 
-from config import PROXY
-from linkedin import profile_lease
+from linkedin import identity, profile_lease
 from linkedin.discovery import _session_alive, human_pause
 
 
@@ -25,14 +24,9 @@ def login_once() -> bool:
     load proves it.
     """
     with profile_lease.writer() as profile_dir:
-        with Camoufox(
-            headless=False,
-            humanize=True,
-            geoip=True,
-            proxy=PROXY,
-            persistent_context=True,
-            user_data_dir=profile_dir,
-        ) as browser:
+        # Same pinned identity as every sweep and apply. Logging in as one
+        # device and then sweeping as another is what got the session revoked.
+        with Camoufox(**identity.camoufox_kwargs(profile_dir)) as browser:
             page = browser.new_page()
             page.goto("https://www.linkedin.com/login")
             input(

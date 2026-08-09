@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from camoufox.sync_api import Camoufox
 
-from config import PROXY
+from linkedin.identity import camoufox_kwargs
 from linkedin.profile_lease import reader
 
 # re.I flag, never an inline (?i) — get_by_role serialises the pattern into a
@@ -50,8 +50,7 @@ def resolve_apply_url(job_id: str, timeout_ms: int = 30000) -> str | None:
         # writing to the real one while a sweep holds it is what was destroying
         # the session.
         with reader() as profile_dir, Camoufox(
-            headless=False, humanize=True, geoip=True, proxy=PROXY,
-            persistent_context=True, user_data_dir=profile_dir,
+            **camoufox_kwargs(profile_dir)
         ) as browser:
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
