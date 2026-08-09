@@ -175,12 +175,21 @@ def check_email():
         return record("email", WARN, "RESEND_API_KEY not set — no receipts will send",
                       "add RESEND_API_KEY to .env on the box")
     import httpx
-    r = httpx.get("https://api.resend.com/domains",
-                  headers={"Authorization": f"Bearer {RESEND_API_KEY}"}, timeout=20)
+    # Probe the SEND endpoint with a deliberately incomplete payload. A
+    # sending-only key is 401 on /domains and /api-keys even though it sends
+    # fine, so those endpoints report a working key as broken. Here a good key
+    # gets 422 (missing `to`) and a bad one gets 401, and no mail goes out.
+    r = httpx.post("https://api.resend.com/emails",
+                   headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                   json={}, timeout=20)
     if r.status_code == 401:
         return record("email", FAIL, "Resend rejected the key",
                       "check RESEND_API_KEY")
-    record("email", PASS, f"{EMAIL_FROM} -> {EMAIL_TO}")
+    if r.status_code != 422:
+        return record("email", WARN, f"unexpected Resend response {r.status_code}",
+                      "key may still work — check the Resend dashboard")
+    note = "" if "@resend.dev" not in EMAIL_FROM else "  (resend.dev sender: may land in spam)"
+    record("email", PASS, f"{EMAIL_FROM} -> {EMAIL_TO}{note}")
 
 
 @step("openai")
