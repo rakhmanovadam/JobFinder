@@ -336,6 +336,12 @@ def _never_auto(label: str) -> bool:
     return any(re.search(p, label) for p in FIELD_MAP.get("never_auto", []))
 
 
+def _is_essay(label: str) -> bool:
+    """Open prose: nothing to map to, so the mapping lanes must skip it and
+    the writing lane must take it."""
+    return any(re.search(p, label) for p in FIELD_MAP.get("essay_fields", []))
+
+
 def _match_bool_to_options(value: bool, options: list[str]) -> str | None:
     for o in options:
         if value and YES.match(o.strip()):
@@ -387,7 +393,7 @@ def remember_answer(field: dict, answer, source: str):
 def deterministic(field: dict):
     """Layer 2 — returns (value, source) or (None, None)."""
     label = field["label"]
-    if _never_auto(label):
+    if _never_auto(label) or _is_essay(label):
         return None, None
 
     for rule in FIELD_MAP.get("boolean_fields", []):
@@ -429,7 +435,7 @@ class Mapped(BaseModel):
 
 def ai_resolve(field: dict):
     """Layer 3 — constrained resolution. Returns (value, source) or (None, None)."""
-    if _never_auto(field["label"]):
+    if _never_auto(field["label"]) or _is_essay(field["label"]):
         return None, None
 
     facts = {
@@ -560,7 +566,11 @@ def resolve_form(fields: list[dict], context: dict | None = None) -> tuple[dict,
             val, source = ai_resolve(f)
         # Essays only after the factual lanes miss: they are per-company, so
         # they are neither cached nor reusable.
-        if val is None and (f["type"] == "textarea" or ESSAY_RE.search(f["label"])):
+        if val is None and (
+            f["type"] == "textarea"
+            or _is_essay(f["label"])
+            or ESSAY_RE.search(f["label"])
+        ):
             val, source = ai_compose(f, context)
 
         if val is not None:

@@ -61,10 +61,22 @@ choice_fields:
   - {pattern: "(?i)disability",                   path: "eeo.disability_status"}
   - {pattern: "(?i)(education|degree) level",     path: "education_level"}
 
-# Labels matching these are never auto-filled — they always go to you.
+# Never auto-filled under any circumstance — these go to you, or nowhere.
+# Anything here also blocks the essay writer.
 never_auto:
+  - "(?i)social security|\\bssn\\b"
+  - "(?i)passport|driver'?s licen[cs]e number"
+  - "(?i)bank|routing number|account number"
+  - "(?i)password"
+
+# Open prose. These cannot be MAPPED to a stored value — there is no such
+# value — so the field_map and the mapping model both skip them. They are
+# written by ai_compose from the resume instead, and every word is shown on
+# the confirmation card before anything is submitted.
+essay_fields:
   - "(?i)why do you want"
   - "(?i)cover letter"
   - "(?i)tell us about"
   - "(?i)describe (a|your)"
   - "(?i)what (interests|excites|draws)"
+  - "(?i)in your own words"
