@@ -22,6 +22,41 @@ def _num_key(n: str) -> str:
     return re.sub(r"[^\d]", "", n)
 
 
+def _source_blob(master: dict) -> str:
+    """Every string in the résumé, flattened.
+
+    The curated `skills` lists are not the only place a real skill lives. The
+    coursework, certifications, and experience bullets are full of them, and
+    the model draws on all of it — correctly, since a marketing job wants to
+    hear about the ad campaigns he actually ran. Indexing only `skills` meant
+    "Calculus AB", "Excel", and "Instagram Reels" were all reported as
+    fabricated while sitting in the source document.
+    """
+    parts: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+        elif isinstance(node, str):
+            parts.append(node)
+
+    walk(master)
+    return norm(" | ".join(parts))
+
+
+def _in_source(phrase: str, blob: str) -> bool:
+    """Whole-phrase match with word boundaries, so a two-letter skill can't
+    match the inside of an unrelated word."""
+    p = norm(phrase)
+    if len(p) < 3:
+        return False
+    return re.search(rf"(?<!\w){re.escape(p)}(?!\w)", blob) is not None
+
+
 def build_index(master: dict) -> dict:
     orgs, titles, dates, skills, numbers = set(), set(), set(), set(), set()
 
@@ -60,6 +95,7 @@ def build_index(master: dict) -> dict:
         "dates": dates,
         "skills": skills,
         "numbers": numbers,
+        "source": _source_blob(master),
     }
 
 
@@ -84,8 +120,12 @@ def validate(tailored, master: dict) -> tuple[bool, list[str]]:
                 if _num_key(n) not in idx["numbers"]:
                     problems.append(f"fabricated metric '{n}' in {e.org}")
 
+    # A skill is traceable if it is on a curated list OR appears verbatim
+    # anywhere in the source. Rewording still fails: the résumé says "Social
+    # media", so "Social media strategy" is a bigger claim than the source
+    # supports and is rejected — which is the whole point of this check.
     for s in getattr(tailored, "skills", []):
-        if norm(s) not in idx["skills"]:
+        if norm(s) not in idx["skills"] and not _in_source(s, idx["source"]):
             problems.append(f"unknown skill: {s}")
 
     # The summary and note are prose, but numbers in them must still trace.

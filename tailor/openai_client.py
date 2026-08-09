@@ -25,6 +25,13 @@ candidate does not have, omit it — never claim it. Every organization name,
 title, date, number, and skill in your output must appear verbatim in the
 SOURCE. Rephrasing prose is allowed; changing facts is not.
 
+SKILLS especially: copy each one WORD FOR WORD from the SOURCE. Do not
+reword, expand, generalise, or split them. If the SOURCE says "Social media",
+write "Social media" — not "Social media strategy", not "Social media
+management". If it says "Google and Meta ad campaigns", keep that whole
+phrase; do not turn it into "Google Ads". Widening a skill is a bigger claim
+than the candidate can back up.
+
 Also produce a 3-sentence note, written by the candidate in FIRST PERSON ("I
 built", "I want to"), saying why he fits this job. Draw only on real source
 material. The résumé `summary` and `bullets` stay in résumé style with no
