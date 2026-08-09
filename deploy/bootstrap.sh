@@ -35,7 +35,7 @@ echo "==> browsers"
 ./.venv/bin/python -m playwright install --with-deps chromium
 
 echo "==> node deps for resume rendering"
-( cd tailor && npm install --silent --no-fund --no-audit )
+npm install --silent --no-fund --no-audit   # package.json is at the repo root
 
 echo "==> preflight"
 missing=0

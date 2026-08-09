@@ -29,6 +29,14 @@ def build_index(master: dict) -> dict:
         orgs.add(norm(item.get("org", "")))
         titles.add(norm(item.get("title", "")))
         dates.add(norm(item.get("dates", "")))
+        # Years in a date range are real, traceable numbers. Indexing only
+        # bullets meant education entries — whose bullets are empty and whose
+        # years live in `dates` — had their years treated as invented metrics,
+        # so a résumé stating the candidate's own enrollment dates failed
+        # validation. That was the single largest cause of failed drafts.
+        for field in ("dates", "title"):
+            for n in extract_numbers(item.get(field, "")):
+                numbers.add(_num_key(n))
         for b in item.get("bullets", []):
             for n in extract_numbers(b):
                 numbers.add(_num_key(n))
