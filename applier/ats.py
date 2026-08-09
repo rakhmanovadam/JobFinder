@@ -17,6 +17,31 @@ SHOTS = ROOT / "screenshots"
 
 SUBMIT_RE = re.compile(r"(?i)^(submit|submit application|apply|send application)$")
 
+# Decline non-essential cookies — never "Accept all".
+DECLINE_RE = re.compile(
+    r"(?i)^(decline all|decline|reject all|reject|necessary only|"
+    r"only necessary|essential only)$"
+)
+
+
+def _dismiss_cookie_banner(page) -> str | None:
+    """Consent overlays are not a detail: on Workable the banner covered the
+    Apply button (so the click timed out and failed the whole application) and
+    its own buttons then read as form fields, so the filler answered the banner
+    instead of the form. Dismiss it with the privacy-preserving choice.
+    """
+    for role in ("button", "link"):
+        cand = page.get_by_role(role, name=DECLINE_RE)
+        if not cand.count():
+            continue
+        try:
+            cand.first.click(timeout=4000)
+            page.wait_for_timeout(1200)
+            return cand.first.inner_text().strip()
+        except Exception:
+            continue
+    return None
+
 
 def _fill_field(page, name: str, entry: dict) -> bool:
     from applier.fields import _locate
@@ -102,6 +127,8 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(2500)
+
+            _dismiss_cookie_banner(page)
 
             # Some boards hide the form behind an Apply button. Others (Workable)
             # render the form inline AND keep a decorative "Apply for this job"

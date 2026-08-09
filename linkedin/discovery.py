@@ -274,6 +274,10 @@ def _alert_checkpoint(page):
 KEYWORD_GAP = (300, 600)
 
 
+class SessionDead(RuntimeError):
+    """No usable LinkedIn session — discovery must not run guest-mode."""
+
+
 def sweep(
     headless: bool = True,
     keywords: list[str] | None = None,
@@ -285,10 +289,12 @@ def sweep(
     the caller can store/notify immediately instead of waiting for the pass to
     finish. 5-10 min between searches.
 
-    guest=True (default): no login, no persistent profile — LinkedIn's public
-    job SERP returns the same result set for keyword+geo+filter searches, so
-    discovery carries zero account-ban risk. guest=False reuses the logged-in
-    profile (needed only if a future feature requires authenticated data).
+    guest=False is the real path: only the authenticated SERP honours f_WT, so
+    only it can tell a remote job from an on-site one. Without a live session
+    this raises SessionDead rather than falling back to guest — an unfiltered
+    pass looks identical to a filtered one downstream.
+
+    guest=True remains for manual probing (debug_search.py, doctor).
     """
     if keywords:
         specs = [
@@ -302,18 +308,17 @@ def sweep(
     if len(specs) > 3 and random.random() < 0.35:
         specs = specs[: len(specs) - random.randint(1, 2)]
 
-    # A dead li_at leaves a li_rm behind, and LinkedIn answers that profile with
-    # /authwall instead of the public SERP — so a stale session doesn't just
-    # lose the f_WT filter, it takes discovery down entirely. Check before
-    # committing to the authenticated path and fall back to a clean guest
-    # profile, which is never authwalled.
+    # Authenticated-only by request. The guest SERP accepts f_WT and ignores
+    # it, so a guest pass returns on-site jobs labelled as if they had been
+    # filtered for remote — worse than no pass at all. A dead session is now a
+    # hard stop, not a downgrade.
     if not guest and not _profile_has_live_session(headless=headless):
-        print("   !! LinkedIn session is dead — running this pass in guest mode "
-              "(workplace filter will NOT apply)")
-        guest = True
+        raise SessionDead(
+            "no live li_at — discovery is authenticated-only. "
+            "Re-run: python -m linkedin.session"
+        )
 
     seen = set()
-    authed_ok = not guest
     cf_kwargs = dict(headless=headless, humanize=True, geoip=True, proxy=PROXY)
     if not guest:
         _clear_stale_profile_lock()
@@ -338,19 +343,17 @@ def sweep(
                 return
 
             # Authenticated mode is the only one where f_WT (remote/on-site) is
-            # honoured — the guest endpoint accepts the parameter and ignores it.
-            # So losing the session mid-sweep silently changes what the results
-            # mean; note it on every card rather than letting on-site jobs pass
-            # as if they had been filtered.
-            # Guest results are NEVER workplace-filtered — the endpoint ignores
-            # f_WT — so the flag starts false unless we are genuinely logged in.
+            # honoured — the guest endpoint accepts the parameter and ignores
+            # it. Losing the session mid-pass therefore changes what every
+            # later result means, so the pass stops there instead of quietly
+            # continuing with unfiltered cards.
             wt_applied = not guest
             if not guest and not _session_alive(page):
-                wt_applied = False
-                if authed_ok:
-                    print("   !! session not authenticated — workplace filter no "
-                          "longer applies; continuing in guest shape")
-                    authed_ok = False
+                raise SessionDead(
+                    f"session dropped mid-pass (after {i} of {len(specs)} "
+                    "keywords) — remaining results would not be "
+                    "workplace-filtered. Re-run: python -m linkedin.session"
+                )
 
             _browse_like_a_human(page)
 

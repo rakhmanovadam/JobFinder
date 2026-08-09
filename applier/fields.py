@@ -6,6 +6,7 @@ Layer 3  AI (cheap model) with a schema whose enum is the form's own options,
          so an invented option is structurally impossible
 Layer 4  any REQUIRED field still unresolved -> caller must not submit
 """
+import json
 import re
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from usage import record
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE = yaml.safe_load((ROOT / "profile.yaml").read_text())
 FIELD_MAP = yaml.safe_load((ROOT / "field_map.yaml").read_text())
+# profile.yaml is logistics (address, work auth, EEO). The actual experience —
+# what an essay answer has to be built from — lives in the résumé master.
+RESUME = json.loads((ROOT / "tailor" / "resume_data.json").read_text())
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -75,6 +79,15 @@ def enumerate_fields(page) -> list[dict]:
             return best || clean(el.name || el.placeholder || '');
         };
 
+        // Consent/cookie widgets look exactly like form controls (a labelled
+        // group of two short buttons) and sit above the real form. They are
+        // never part of an application — reject them by container.
+        const inBanner = (el) => !!el.closest(
+            '[id*="cookie" i],[class*="cookie" i],[id*="consent" i],'
+            + '[class*="consent" i],[id*="onetrust" i],[class*="onetrust" i],'
+            + '[class*="gdpr" i],[id*="gdpr" i],[aria-label*="cookie" i]'
+        );
+
         const isCombo = el =>
             el.getAttribute('role') === 'combobox'
             || el.getAttribute('aria-haspopup') === 'listbox'
@@ -85,6 +98,7 @@ def enumerate_fields(page) -> list[dict]:
         for (const el of document.querySelectorAll('input, select, textarea')) {
             if (el.type === 'hidden' || el.disabled) continue;
             if (el.offsetParent === null && el.type !== 'file') continue;
+            if (inBanner(el)) continue;
 
             const label = labelFor(el).slice(0, 160);
             const combo = el.tagName !== 'SELECT' && isCombo(el);
@@ -124,6 +138,7 @@ def enumerate_fields(page) -> list[dict]:
         const groups = new Set();
         for (const btn of document.querySelectorAll('button')) {
             if (btn.disabled || btn.offsetParent === null) continue;
+            if (inBanner(btn)) continue;
             const t = clean(btn.textContent);
             if (!t || t.length > 24) continue;
             const box = btn.parentElement;
@@ -398,7 +413,8 @@ def ai_compose(field: dict, context: dict | None):
         "employer, school, title, date, metric, or skill. No placeholders like "
         "[Company]. 2-4 sentences, plain and specific, no flattery padding.\n"
         "If CANDIDATE DATA cannot support an honest answer, set confident=false.\n\n"
-        f"CANDIDATE DATA:\n{PROFILE}\n\n"
+        f"CANDIDATE RESUME:\n{RESUME}\n\n"
+        f"CANDIDATE LOGISTICS:\n{PROFILE}\n\n"
         f"ROLE: {ctx.get('title', '')} at {ctx.get('company', '')}\n"
         f"JOB DESCRIPTION (context only, not facts about the candidate):\n"
         f"{(ctx.get('jd') or '')[:3000]}\n\n"

@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from db import get_db
-from linkedin.discovery import sweep
+from linkedin.discovery import sweep, SessionDead
 from filter import store_cards
 from tg.notify import send, alert
 
@@ -75,29 +75,42 @@ def run_cycle(force: bool = False, fast: bool = False):
 
     total_found, total_new, total_unfiltered = 0, [], 0
     kwargs = {"gap": (12, 35)} if fast else {}
+    stopped_early = ""
     # Authenticated: only the logged-in SERP honours f_WT (remote / on-site),
     # which the guest endpoint accepts and ignores. sweep() degrades to the
     # guest shape by itself if the session drops, and marks those cards so
     # store_cards refuses to promote them.
-    for keyword, cards in sweep(guest=False, **kwargs):
-        result = store_cards(cards)
-        total_found += result["found"]
-        total_unfiltered += result.get("unfiltered_skipped", 0)
-        new = result["new_matched"]
-        total_new.extend(new)
-        if new:
-            notify_matches(keyword, new)
-        print(f"  {keyword}: {result['found']} cards, {len(new)} new matches")
+    try:
+        for keyword, cards in sweep(guest=False, **kwargs):
+            result = store_cards(cards)
+            total_found += result["found"]
+            total_unfiltered += result.get("unfiltered_skipped", 0)
+            new = result["new_matched"]
+            total_new.extend(new)
+            if new:
+                notify_matches(keyword, new)
+            print(f"  {keyword}: {result['found']} cards, {len(new)} new matches")
+    except SessionDead as e:
+        # Expected, not a crash: discovery is authenticated-only, so no session
+        # means no pass. Whatever was collected before the stop still counts.
+        stopped_early = str(e)
+        print(f"stopped: {e}")
 
-    msg = (
-        f"✅ Sweep done · scanned {total_found} cards · "
-        f"{len(total_new)} new match(es) this pass"
-    )
+    if stopped_early:
+        msg = (
+            "🔐 Sweep stopped — LinkedIn session is not live.\n"
+            f"{stopped_early}\n"
+            f"Collected {total_found} card(s) before stopping."
+        )
+    else:
+        msg = (
+            f"✅ Sweep done · scanned {total_found} cards · "
+            f"{len(total_new)} new match(es) this pass"
+        )
     if total_unfiltered:
         msg += (
-            f"\n⚠️ {total_unfiltered} title match(es) held back — the LinkedIn "
-            "session dropped mid-pass, so remote/on-site filtering did not "
-            "apply. Re-run the login to restore it."
+            f"\n⚠️ {total_unfiltered} title match(es) held back — results were "
+            "not workplace-filtered."
         )
     send(msg)
     db.table("run_log").insert(
