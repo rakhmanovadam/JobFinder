@@ -93,7 +93,10 @@ def _fill_field(page, name: str, entry: dict) -> bool:
             target.click(timeout=3000)
             page.wait_for_timeout(200)
         elif f["type"] in ("radio", "checkbox"):
-            page.locator(f'[name="{f["name"]}"][value="{value}"]').first.check()
+            # Answers come back as the option's visible label; the input carries
+            # a separate value= (often an opaque id), so translate first.
+            target = (f.get("option_values") or {}).get(value, value)
+            page.locator(f'[name="{f["name"]}"][value="{target}"]').first.check()
         else:
             loc.fill(str(value))
         return True

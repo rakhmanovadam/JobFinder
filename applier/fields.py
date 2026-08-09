@@ -104,6 +104,31 @@ def enumerate_fields(page) -> list[dict]:
             + '[class*="gdpr" i],[id*="gdpr" i],[aria-label*="cookie" i]'
         );
 
+        // For any grouped control (radios, button pairs) the enclosing text is
+        // the OPTIONS, not the question — "YES NO", "Male Female". Walk up
+        // subtracting the option text, and if nothing is left look backwards
+        // for the prompt, which is often a sibling rather than an ancestor.
+        const questionFor = (start, optTexts) => {
+            let n = start;
+            for (let i = 0; i < 5 && n; i++, n = n.parentElement) {
+                let t = clean(n.innerText);
+                if (!t || t.length > 400) continue;
+                for (const o of optTexts) t = t.split(o).join(' ');
+                t = clean(t);
+                if (t.length >= 6) return t.slice(0, 160);
+            }
+            n = start;
+            for (let i = 0; i < 5 && n; i++, n = n.parentElement) {
+                let sib = n.previousElementSibling;
+                while (sib) {
+                    const t = clean(sib.innerText);
+                    if (t && t.length >= 6 && t.length < 200) return t.slice(0, 160);
+                    sib = sib.previousElementSibling;
+                }
+            }
+            return '';
+        };
+
         const isCombo = el =>
             el.getAttribute('role') === 'combobox'
             || el.getAttribute('aria-haspopup') === 'listbox'
@@ -111,8 +136,51 @@ def enumerate_fields(page) -> list[dict]:
             || !!el.closest('[class*="select"],[class*="Select"],[class*="dropdown"]');
 
         const out = [], seen = new Set();
+
+        // Radio groups first. A radio's own <label for> is its OPTION ("Male"),
+        // so enumerating radios individually turns every option into its own
+        // question — the EEO block came out as fields named "Male" and
+        // "Female", which then got answered "Male" and "No". One question per
+        // `name`, with the option labels as the choices.
+        const radioByName = new Map();
+        for (const el of document.querySelectorAll('input[type="radio"]')) {
+            if (el.disabled || inBanner(el) || !el.name) continue;
+            if (!radioByName.has(el.name)) radioByName.set(el.name, []);
+            radioByName.get(el.name).push(el);
+        }
+        for (const [name, els] of radioByName) {
+            const visible = els.filter(e => e.offsetParent !== null);
+            if (!visible.length) continue;
+            const optTexts = visible.map(e => labelFor(e)).map(clean);
+            const container = visible[0].closest('fieldset')
+                || visible[0].parentElement?.parentElement
+                || visible[0].parentElement;
+            const legend = container?.querySelector?.('legend');
+            const label = clean(legend?.innerText || '')
+                || questionFor(container, optTexts);
+            if (!label) continue;
+            const key = `${label}|radio`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({
+                label: label.slice(0, 160),
+                name,
+                id: '',
+                type: 'radio',
+                required: visible.some(e => e.required
+                    || e.getAttribute('aria-required') === 'true'),
+                options: optTexts.filter(Boolean),
+                // The form stores value=, the human reads the label — keep the
+                // mapping so the filler can check the right input.
+                option_values: Object.fromEntries(
+                    visible.map((e, i) => [optTexts[i], e.value])
+                ),
+            });
+        }
+
         for (const el of document.querySelectorAll('input, select, textarea')) {
             if (el.type === 'hidden' || el.disabled) continue;
+            if (el.type === 'radio') continue;   // handled as groups above
             if (el.offsetParent === null && el.type !== 'file') continue;
             if (inBanner(el)) continue;
 
@@ -167,21 +235,7 @@ def enumerate_fields(page) -> list[dict]:
             if (texts.length < 2 || texts.length > 5) continue;
             if (new Set(texts).size !== texts.length) continue;
 
-            // labelFor walks up and keeps the SHORTEST text, which for a button
-            // group is the group's own buttons ("YES NO", "Male Female ...").
-            // That is the answer, not the question, and it made every such
-            // field unresolvable. Strip the option text off each candidate
-            // ancestor and keep the first remainder that still reads as a
-            // question.
-            let label = '';
-            let anc = box;
-            for (let i = 0; i < 4 && anc; i++, anc = anc.parentElement) {
-                let t = clean(anc.innerText);
-                if (!t || t.length > 400) continue;
-                for (const opt of texts) t = t.split(opt).join(' ');
-                t = clean(t);
-                if (t.length >= 6) { label = t.slice(0, 160); break; }
-            }
+            const label = questionFor(box, texts);
             if (!label) continue;
             const key = `${label}|buttongroup`;
             if (seen.has(key)) continue;
@@ -299,7 +353,23 @@ def cached_answer(field: dict):
     return r.data[0]["answer"] if r.data else None
 
 
+def _cacheable(field: dict) -> bool:
+    """The cache is keyed by label, so a bad label poisons it permanently and
+    silently — the stored answer then wins over field_map on every later form.
+    Real questions are short-ish and are not just the option text.
+    """
+    label = (field.get("label") or "").strip()
+    if not (3 <= len(label) <= 120):
+        return False
+    if any(label.strip().lower() == str(o).strip().lower()
+           for o in field.get("options") or []):
+        return False
+    return True
+
+
 def remember_answer(field: dict, answer, source: str):
+    if not _cacheable(field):
+        return
     try:
         get_db().table("field_answers").upsert(
             {
@@ -477,10 +547,15 @@ def resolve_form(fields: list[dict], context: dict | None = None) -> tuple[dict,
         if f["type"] == "file":
             continue
 
-        val = cached_answer(f)
-        source = "cache" if val is not None else None
+        # field_map/profile.yaml BEFORE the learned cache: profile.yaml is the
+        # authority, the cache is only a memory of past guesses. With the cache
+        # first, an answer learned once outranked the config forever — a stale
+        # address stayed cached under "Email" and kept being filled in even
+        # after profile.yaml was corrected.
+        val, source = deterministic(f)
         if val is None:
-            val, source = deterministic(f)
+            val = cached_answer(f)
+            source = "cache" if val is not None else None
         if val is None:
             val, source = ai_resolve(f)
         # Essays only after the factual lanes miss: they are per-company, so
