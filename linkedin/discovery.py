@@ -165,27 +165,36 @@ def _profile_has_live_session(headless: bool = False) -> bool:
 _LOGGED_OUT_URL = re.compile(r"/uas/login|/authwall|/checkpoint|/signup", re.I)
 
 
+# Markers measured on the box against a live session, not guessed. All present
+# on an authenticated /jobs/search/; all absent when logged out, where the same
+# URL serves the guest SERP (div.base-card) instead.
+_AUTH_MARKERS = (
+    "#global-nav, .global-nav__me, img.global-nav__me-photo, "
+    "li[data-occludable-job-id], div.job-card-container"
+)
+
+
 def _session_alive(page) -> bool:
     """Is this page being served to a logged-in account?
 
-    URL first. Matching on the text 'Me' also matched LinkedIn's logged-out
-    chrome, so a /uas/login page reported as a live session — the exact false
-    positive the SessionDead guard exists to prevent, and it would let a whole
-    pass run unfiltered. It also went the other way on /feed, reporting dead
-    while every search right after it was fine.
+    URL first: a redirect to login/authwall is decisive and the DOM cannot
+    contradict it. Matching the text 'Me' used to pass here, because LinkedIn's
+    logged-out chrome renders it too — a /uas/login page came back alive.
 
-    Positive proof is an element only an authenticated page renders: the job
-    list itself, or the account photo in the nav.
+    Then markers, which only work on job search. LinkedIn's /feed/ runs a
+    different shell that renders none of them (measured: 0 of every nav marker
+    on the feed, all of them on a search page one load later), so judging the
+    feed by markers reported a perfectly good session as dead. The feed is
+    judged by the redirect alone instead — a logged-out visitor never reaches
+    it. Job search cannot be, since logged-out users do get served there.
     """
     try:
-        if _LOGGED_OUT_URL.search(page.url or ""):
+        url = page.url or ""
+        if _LOGGED_OUT_URL.search(url):
             return False
-        return (
-            page.locator(
-                "li[data-occludable-job-id], div.job-card-container").count() > 0
-            or page.locator("img.global-nav__me-photo").count() > 0
-            or page.locator(".global-nav__me").count() > 0
-        )
+        if page.locator(_AUTH_MARKERS).count() > 0:
+            return True
+        return "/feed" in url
     except Exception:
         return False
 
