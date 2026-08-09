@@ -51,12 +51,20 @@ def is_checkpoint(page, guest: bool = True) -> bool:
             return signup_wall and page.locator("div.base-card").count() == 0
         if signup_wall:
             return True
-        # Authenticated SERP must carry the global nav; it can render late.
-        try:
-            page.wait_for_selector("#global-nav", timeout=10000)
-        except Exception:
-            return True
-        return False
+        # Authenticated chrome. #global-nav alone is stale in LinkedIn's
+        # current DOM, so waiting on it declared a perfectly good session a
+        # checkpoint and hard-stopped the sweep after two keywords. Use the
+        # same marker _session_alive does, and only after giving it a moment
+        # to render.
+        for _ in range(10):
+            if _session_alive(page):
+                return False
+            page.wait_for_timeout(1000)
+        # Cards on the page mean LinkedIn served results, whatever the chrome
+        # looks like — that is not a block.
+        return page.locator(
+            "li[data-occludable-job-id], div.job-card-container, div.base-card"
+        ).count() == 0
     except Exception:
         return False
 

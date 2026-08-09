@@ -58,10 +58,14 @@ def draft_one(job: dict) -> str:
         ).eq("id", job["id"]).execute()
         job.update(ats_type=ats["ats"], ats_url=ats["url"], apply_lane="ats")
     elif job.get("apply_lane") != "easy_apply":
-        db.table("jobs").update({"apply_lane": "unresolved"}).eq(
-            "id", job["id"]
-        ).execute()
-        job["apply_lane"] = "unresolved"
+        # No board API match. Before giving up, check whether it is Easy Apply —
+        # that is a lane we can actually complete, and it is far more common
+        # than card-level detection suggested.
+        from linkedin.jd import jd_is_easy_apply
+
+        lane = "easy_apply" if jd_is_easy_apply(job["external_id"]) else "unresolved"
+        db.table("jobs").update({"apply_lane": lane}).eq("id", job["id"]).execute()
+        job["apply_lane"] = lane
 
     tailored = tailor(jd, MASTER, job["persona"], job.get("id"))
 

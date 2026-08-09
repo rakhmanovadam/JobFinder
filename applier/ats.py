@@ -105,7 +105,17 @@ def _fill_field(page, name: str, entry: dict) -> bool:
 
 
 def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
-    """Returns {'status': applied|needs_manual|failed, 'detail', 'screenshot'}."""
+    """Returns {'status': applied|needs_manual|failed, 'detail', 'screenshot'}.
+
+    Easy Apply is a different surface — a modal on LinkedIn itself, needing the
+    authenticated profile — so it is handled by its own module. Everything else
+    is an external ATS page in a plain browser.
+    """
+    if job.get("apply_lane") == "easy_apply" and not job.get("ats_url"):
+        from applier.easy_apply import apply_easy
+
+        return apply_easy(job, app, dry_run=dry_run)
+
     url = job.get("ats_url")
     if not url:
         # No board API match — ask LinkedIn (authenticated) for the real apply

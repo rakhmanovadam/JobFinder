@@ -42,14 +42,20 @@ def dig(path: str):
     return cur
 
 
-def enumerate_fields(page) -> list[dict]:
+def enumerate_fields(page, root: str | None = None) -> list[dict]:
     """Layer 1 — the form as data, not pixels.
 
     Handles native inputs AND the React comboboxes modern ATSes render as
     `<input type=text role=combobox>` with the options in a popup listbox.
+
+    `root` scopes the scan to one container. LinkedIn's Easy Apply form is a
+    modal sitting on top of a full job page, so an unscoped scan would pull in
+    the page's own search box and filters alongside the actual questions.
     """
     return page.evaluate(
-        """() => {
+        """(rootSel) => {
+        const SCOPE = rootSel ? document.querySelector(rootSel) : document;
+        if (!SCOPE) return [];
         const clean = s => (s || '').replace(/\\s+/g, ' ').replace(/\\*/g, '').trim();
 
         // Nearest label text WITHOUT swallowing sibling questions: prefer an
@@ -144,7 +150,7 @@ def enumerate_fields(page) -> list[dict]:
         // "Female", which then got answered "Male" and "No". One question per
         // `name`, with the option labels as the choices.
         const radioByName = new Map();
-        for (const el of document.querySelectorAll('input[type="radio"]')) {
+        for (const el of SCOPE.querySelectorAll('input[type="radio"]')) {
             if (el.disabled || inBanner(el) || !el.name) continue;
             if (!radioByName.has(el.name)) radioByName.set(el.name, []);
             radioByName.get(el.name).push(el);
@@ -179,7 +185,7 @@ def enumerate_fields(page) -> list[dict]:
             });
         }
 
-        for (const el of document.querySelectorAll('input, select, textarea')) {
+        for (const el of SCOPE.querySelectorAll('input, select, textarea')) {
             if (el.type === 'hidden' || el.disabled) continue;
             if (el.type === 'radio') continue;   // handled as groups above
             if (el.offsetParent === null && el.type !== 'file') continue;
@@ -221,7 +227,7 @@ def enumerate_fields(page) -> list[dict]:
         // text position.
         let gi = 0;
         const groups = new Set();
-        for (const btn of document.querySelectorAll('button')) {
+        for (const btn of SCOPE.querySelectorAll('button')) {
             if (btn.disabled || btn.offsetParent === null) continue;
             if (inBanner(btn)) continue;
             const t = clean(btn.textContent);
@@ -256,7 +262,8 @@ def enumerate_fields(page) -> list[dict]:
             });
         }
         return out;
-    }"""
+    }""",
+        root,
     )
 
 

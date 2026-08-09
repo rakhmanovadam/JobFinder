@@ -32,6 +32,26 @@ def _strip_html(fragment: str) -> str:
     return WS_RE.sub("\n\n", "\n".join(ln for ln in lines if ln))
 
 
+def jd_is_easy_apply(job_id: str, timeout: float = 20.0) -> bool:
+    """Does the guest job page advertise Easy Apply?
+
+    Card-level detection only saw 4 in a thousand, because the authenticated
+    search list shows "Easy Apply" on the detail pane rather than on the card.
+    The guest posting page states it plainly, and costs nothing extra.
+    """
+    try:
+        r = httpx.get(
+            f"https://www.linkedin.com/jobs/view/{job_id}/",
+            headers=HEADERS, timeout=timeout, follow_redirects=True,
+            proxy=PROXY_URL,
+        )
+        if r.status_code != 200:
+            return False
+        return bool(re.search(r"easy\s*apply", r.text, re.I))
+    except Exception:
+        return False
+
+
 def fetch_jd(job_id: str, timeout: float = 20.0) -> str | None:
     """Returns the job description text, or None if unavailable."""
     try:
