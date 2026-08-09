@@ -28,16 +28,23 @@ def send(text: str, reply_markup: dict | None = None) -> dict | None:
 
 
 def send_document(path: str, caption: str = "") -> dict | None:
+    """Never raises. A slow upload used to abort the whole approval card, so
+    the résumé attachment failing meant losing the Submit/Cancel buttons with
+    it — the least important part of the message taking down the rest."""
     if not TELEGRAM_CHAT_ID:
         return None
-    with open(path, "rb") as f:
-        r = httpx.post(
-            f"{API}/sendDocument",
-            data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption[:1000]},
-            files={"document": f},
-            timeout=60,
-        )
-    return r.json() if r.status_code == 200 else None
+    try:
+        with open(path, "rb") as f:
+            r = httpx.post(
+                f"{API}/sendDocument",
+                data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption[:1000]},
+                files={"document": f},
+                timeout=httpx.Timeout(connect=15, read=180, write=180, pool=15),
+            )
+        return r.json() if r.status_code == 200 else None
+    except Exception as e:
+        print("sendDocument failed:", type(e).__name__, e)
+        return None
 
 
 def send_photo(path: str, caption: str = "", reply_markup: dict | None = None) -> dict | None:
@@ -47,8 +54,15 @@ def send_photo(path: str, caption: str = "", reply_markup: dict | None = None) -
     if reply_markup:
         import json as _json
         data["reply_markup"] = _json.dumps(reply_markup)
-    with open(path, "rb") as f:
-        r = httpx.post(f"{API}/sendPhoto", data=data, files={"photo": f}, timeout=60)
+    try:
+        with open(path, "rb") as f:
+            r = httpx.post(
+                f"{API}/sendPhoto", data=data, files={"photo": f},
+                timeout=httpx.Timeout(connect=15, read=180, write=180, pool=15),
+            )
+    except Exception as e:
+        print("sendPhoto failed:", type(e).__name__, e)
+        return None
     if r.status_code != 200:
         print("sendPhoto failed:", r.text[:200])
         return None
