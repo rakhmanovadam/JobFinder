@@ -129,6 +129,11 @@ SEARCH_KEYWORDS = [s["kw"] for s in SEARCH_SPECS]
 # cover everything.
 MAX_SPECS_PER_PASS = int(os.environ.get("MAX_SPECS_PER_PASS", "12"))
 
+# Aggregators that repost other companies' listings and need their own account
+# to apply. Compared lowercase against the card's company name. Jobright.ai is
+# parked here until an account exists for it.
+BLOCKED_COMPANIES = {"jobright.ai"}
+
 # LinkedIn pages the result list 25 at a time. Nothing ever requested page two,
 # so every search silently threw away everything past the first 25 — a search
 # reporting 38 results only ever reached the database as 25.

@@ -4,10 +4,14 @@ from datetime import datetime, timedelta, timezone
 
 from rapidfuzz import process, fuzz
 
-from config import TARGET_TITLES, NEGATIVE_PATTERNS
+from config import TARGET_TITLES, NEGATIVE_PATTERNS, BLOCKED_COMPANIES
 from db import get_db
 
 _VETO_RES = [re.compile(p, re.I) for p in NEGATIVE_PATTERNS]
+
+
+def company_blocked(company: str) -> bool:
+    return (company or "").strip().lower() in BLOCKED_COMPANIES
 
 # Stripped AFTER the veto check, so "senior"/"staff" still trigger vetoes.
 STRIP_RE = re.compile(
@@ -68,6 +72,11 @@ def store_cards(cards: list[dict]) -> dict:
     unfiltered = 0
     for c in cards:
         target, persona, score = match_title(c["title"])
+        # Blocked companies (aggregators needing their own account, e.g.
+        # Jobright.ai) are stored as seen so they stop re-surfacing, but are
+        # never matched or drafted.
+        if company_blocked(c["company"]):
+            persona = None
         # Only the authenticated SERP honours f_WT. If the session dropped, the
         # results are unfiltered by workplace type, so a title match no longer
         # implies the job is remote (or Durham-local). Store it as seen, but
