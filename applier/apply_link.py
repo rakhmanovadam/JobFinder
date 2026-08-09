@@ -13,8 +13,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from camoufox.sync_api import Camoufox
 
-from config import PROXY, PROFILE_DIR
-from linkedin.discovery import _clear_stale_profile_lock
+from config import PROXY
+from linkedin.profile_lease import reader
 
 # re.I flag, never an inline (?i) — get_by_role serialises the pattern into a
 # selector string and an inline flag makes it unparseable at runtime.
@@ -45,11 +45,13 @@ def _logged_in(page) -> bool:
 def resolve_apply_url(job_id: str, timeout_ms: int = 30000) -> str | None:
     """Returns the company's real application URL, or None."""
     url = f"https://www.linkedin.com/jobs/view/{job_id}/"
-    _clear_stale_profile_lock()
     try:
-        with Camoufox(
+        # Disposable copy of the profile: this only needs to BE logged in, and
+        # writing to the real one while a sweep holds it is what was destroying
+        # the session.
+        with reader() as profile_dir, Camoufox(
             headless=False, humanize=True, geoip=True, proxy=PROXY,
-            persistent_context=True, user_data_dir=PROFILE_DIR,
+            persistent_context=True, user_data_dir=profile_dir,
         ) as browser:
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)

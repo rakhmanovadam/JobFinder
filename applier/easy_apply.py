@@ -15,7 +15,7 @@ from pathlib import Path
 
 from camoufox.sync_api import Camoufox
 
-from config import PROXY, PROFILE_DIR
+from config import PROXY
 from applier.fields import enumerate_fields, hydrate_combobox_options, resolve_form
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,12 +54,13 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
 
     answers_all: dict[str, dict] = {}
     missing_all: list[dict] = []
-    from linkedin.discovery import _clear_stale_profile_lock
+    from linkedin.profile_lease import reader
 
-    _clear_stale_profile_lock()
-    with Camoufox(
+    # Copy of the profile, not the profile: an apply must never be able to
+    # clobber the sweep's session.
+    with reader() as profile_dir, Camoufox(
         headless=False, humanize=True, geoip=True, proxy=PROXY,
-        persistent_context=True, user_data_dir=PROFILE_DIR,
+        persistent_context=True, user_data_dir=profile_dir,
     ) as browser:
         page = browser.new_page()
         try:

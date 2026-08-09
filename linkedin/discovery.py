@@ -6,6 +6,7 @@ Run:  python -m linkedin.discovery
 Prints parsed cards as JSON lines. Hard-stops the whole sweep on any
 checkpoint/authwall.
 """
+import contextlib
 import json
 import os
 import random
@@ -14,6 +15,7 @@ import time
 
 from camoufox.sync_api import Camoufox
 
+from linkedin import profile_lease
 from config import (
     PROXY,
     PROFILE_DIR,
@@ -354,10 +356,24 @@ def sweep(
 
     seen = set()
     cf_kwargs = dict(headless=headless, humanize=True, geoip=True, proxy=PROXY)
-    if not guest:
-        _clear_stale_profile_lock()
-        cf_kwargs.update(persistent_context=True, user_data_dir=PROFILE_DIR)
 
+    # The sweep is a WRITER: it wants LinkedIn's cookie refreshes to persist,
+    # so it takes the real profile under an exclusive lock. Applies use a
+    # throwaway copy and can run alongside it. Before this, both pointed at the
+    # same directory and Firefox's last write won, which is what kept
+    # destroying li_at mid-run.
+    lease = (
+        profile_lease.writer("a LinkedIn browser is already running — "
+                             "not starting a second one on the same profile")
+        if not guest else contextlib.nullcontext(None)
+    )
+    with lease as profile_dir:
+        if profile_dir:
+            cf_kwargs.update(persistent_context=True, user_data_dir=profile_dir)
+        yield from _run_specs(cf_kwargs, specs, tpr, gap, guest, seen)
+
+
+def _run_specs(cf_kwargs, specs, tpr, gap, guest, seen):
     with Camoufox(**cf_kwargs) as browser:
         page = browser.new_page()
         for i, spec in enumerate(specs):
