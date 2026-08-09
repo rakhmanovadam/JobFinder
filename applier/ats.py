@@ -241,6 +241,10 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                 "status": "applied" if ok else "needs_manual",
                 "detail": "submitted" if ok else "no confirmation text — verify by hand",
                 "screenshot": str(after),
+                # Carried on the real submit too, not just the preview, so the
+                # emailed receipt can record what was actually sent.
+                "answers": summary,
+                "url": url,
             }
         except Exception as e:
             return {"status": "failed", "detail": f"{type(e).__name__}: {e}"}

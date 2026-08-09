@@ -168,6 +168,21 @@ def check_telegram():
     record("telegram", PASS, f"@{name} reachable (add --send to post a test)")
 
 
+@step("email")
+def check_email():
+    from mailer import EMAIL_FROM, EMAIL_TO, RESEND_API_KEY
+    if not RESEND_API_KEY:
+        return record("email", WARN, "RESEND_API_KEY not set — no receipts will send",
+                      "add RESEND_API_KEY to .env on the box")
+    import httpx
+    r = httpx.get("https://api.resend.com/domains",
+                  headers={"Authorization": f"Bearer {RESEND_API_KEY}"}, timeout=20)
+    if r.status_code == 401:
+        return record("email", FAIL, "Resend rejected the key",
+                      "check RESEND_API_KEY")
+    record("email", PASS, f"{EMAIL_FROM} -> {EMAIL_TO}")
+
+
 @step("openai")
 def check_openai():
     from openai import OpenAI
@@ -226,8 +241,8 @@ def check_applications():
 
 
 STAGES = [check_config, check_proxy, check_db, check_guest, check_session,
-          check_jd, check_render, check_telegram, check_openai, check_tailor,
-          check_applications]
+          check_jd, check_render, check_telegram, check_email, check_openai,
+          check_tailor, check_applications]
 
 
 def main():

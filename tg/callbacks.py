@@ -230,6 +230,16 @@ async def run_applier(app_id: str, q):
         if shot:
             with open(shot, "rb") as f:
                 await q.message.reply_document(InputFile(f), caption="submitted form")
+
+        # Permanent, searchable record with the exact résumé attached. A mail
+        # failure is reported but never undoes a submission that happened.
+        from mailer import EMAIL_TO, send_application_email
+
+        sent, why = await asyncio.to_thread(send_application_email, job, app, result)
+        if not sent:
+            await q.message.reply_text(f"📧 Email receipt not sent — {why}")
+        else:
+            await q.message.reply_text(f"📧 Receipt emailed to {EMAIL_TO}")
     elif result["status"] == "needs_manual":
         db.table("applications").update(
             {"status": "needs_manual", "error": result.get("detail")}
