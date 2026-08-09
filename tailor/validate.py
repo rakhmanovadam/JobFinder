@@ -48,13 +48,61 @@ def _source_blob(master: dict) -> str:
     return norm(" | ".join(parts))
 
 
-def _in_source(phrase: str, blob: str) -> bool:
-    """Whole-phrase match with word boundaries, so a two-letter skill can't
-    match the inside of an unrelated word."""
-    p = norm(phrase)
-    if len(p) < 3:
-        return False
-    return re.search(rf"(?<!\w){re.escape(p)}(?!\w)", blob) is not None
+STOPWORDS = {"and", "or", "of", "the", "a", "an", "in", "for", "with", "to",
+             "on", "at", "by", "using", "via"}
+
+# Crude but predictable stemming. Order matters: longest suffix first.
+SUFFIXES = ("ements", "ement", "ations", "ation", "ments", "ment", "ings",
+            "ing", "ies", "ers", "er", "es", "s")
+
+
+def _stem(word: str) -> str:
+    for suf in SUFFIXES:
+        base = word[: -len(suf)]
+        if len(base) >= 2 and word.endswith(suf):
+            return base[:-1] + "y" if suf == "ies" else base
+    return word
+
+
+def _words(text: str) -> list[str]:
+    """Meaningful words, punctuation treated as a space.
+
+    Splitting on punctuation matters more than it looks: the résumé says
+    "lead-generation engine", so a phrase match for "lead generation" missed
+    it over a hyphen.
+    """
+    # Two-letter words count. Dropping them threw away "ad" from "ad
+    # campaigns", so "Google Ads" could not trace. Requiring EVERY word to
+    # match keeps short tokens from making the check loose.
+    return [
+        w for w in re.split(r"[^a-z0-9]+", norm(text))
+        if w and w not in STOPWORDS and len(w) >= 2
+    ]
+
+
+def _tokens(text: str) -> set[str]:
+    """Both the word and its stem, so matching can go either direction —
+    "Ads" against "ad campaigns", "communication" against "Communications"."""
+    out = set()
+    for w in _words(text):
+        out.add(w)
+        out.add(_stem(w))
+    return out
+
+
+def _in_source(phrase: str, source_tokens: set[str]) -> bool:
+    """A skill is traceable when every meaningful word in it traces.
+
+    Phrase matching was wrong. "Social media management" never appears as
+    those three words in a row, but the title "Operations & Social Media
+    Manager" is right there — the skill is real, it is just worded
+    differently. Matching word by word, on stems, accepts the real ones while
+    still rejecting a skill whose words are simply not in the document.
+    """
+    want = _words(phrase)
+    return bool(want) and all(
+        w in source_tokens or _stem(w) in source_tokens for w in want
+    )
 
 
 def build_index(master: dict) -> dict:
@@ -80,9 +128,10 @@ def build_index(master: dict) -> dict:
         for item in master.get(key, []):
             ingest(item)
 
-    sk = master.get("skills", {})
-    for group in ("technical", "languages", "lab"):
-        for s in sk.get(group, []):
+    # Every group, not a hardcoded three — adding a "marketing" group to the
+    # résumé should not leave its skills silently untraceable.
+    for group_skills in (master.get("skills") or {}).values():
+        for s in group_skills or []:
             skills.add(norm(s))
 
     for h in master.get("honors", []):
@@ -95,7 +144,7 @@ def build_index(master: dict) -> dict:
         "dates": dates,
         "skills": skills,
         "numbers": numbers,
-        "source": _source_blob(master),
+        "source_tokens": _tokens(_source_blob(master)),
     }
 
 
@@ -120,12 +169,8 @@ def validate(tailored, master: dict) -> tuple[bool, list[str]]:
                 if _num_key(n) not in idx["numbers"]:
                     problems.append(f"fabricated metric '{n}' in {e.org}")
 
-    # A skill is traceable if it is on a curated list OR appears verbatim
-    # anywhere in the source. Rewording still fails: the résumé says "Social
-    # media", so "Social media strategy" is a bigger claim than the source
-    # supports and is rejected — which is the whole point of this check.
     for s in getattr(tailored, "skills", []):
-        if norm(s) not in idx["skills"] and not _in_source(s, idx["source"]):
+        if norm(s) not in idx["skills"] and not _in_source(s, idx["source_tokens"]):
             problems.append(f"unknown skill: {s}")
 
     # The summary and note are prose, but numbers in them must still trace.
