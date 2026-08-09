@@ -129,19 +129,30 @@ SEARCH_KEYWORDS = [s["kw"] for s in SEARCH_SPECS]
 # cover everything.
 MAX_SPECS_PER_PASS = int(os.environ.get("MAX_SPECS_PER_PASS", "12"))
 
+# LinkedIn pages the result list 25 at a time. Nothing ever requested page two,
+# so every search silently threw away everything past the first 25 — a search
+# reporting 38 results only ever reached the database as 25.
+PAGE_SIZE = 25
+# 4 pages = up to 100 per search. The 6h time window rarely holds that many, so
+# most searches stop on their own well before the cap.
+MAX_PAGES_PER_SEARCH = int(os.environ.get("MAX_PAGES_PER_SEARCH", "4"))
+
 
 def search_url(
     keyword: str,
     tpr: str = SWEEP_TPR,
     geo: str = GEO_US,
     wt: str = WT_REMOTE,
+    start: int = 0,
 ) -> str:
-    """tpr: LinkedIn time-posted filter — r3600 = past hour, r21600 = past 6h."""
-    return (
+    """tpr: LinkedIn time-posted filter — r3600 = past hour, r21600 = past 6h.
+    start: result offset, in multiples of PAGE_SIZE."""
+    url = (
         "https://www.linkedin.com/jobs/search/?f_E=2"
         f"&f_TPR={tpr}&f_WT={wt}&geoId={geo}"
         f"&sortBy=DD&refresh=true&keywords={quote(keyword)}"
     )
+    return url if not start else f"{url}&start={start}"
 
 # ---------------------------------------------------------------------------
 # Target titles -> persona. Fuzzy-matched (>=85 token_sort, >=95 partial).

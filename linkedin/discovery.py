@@ -20,6 +20,8 @@ from config import (
     PROXY,
     PROFILE_DIR,
     MAX_SPECS_PER_PASS,
+    MAX_PAGES_PER_SEARCH,
+    PAGE_SIZE,
     SEARCH_SPECS,
     SWEEP_TPR,
     GEO_US,
@@ -277,18 +279,6 @@ def extract_job_cards(page) -> list[dict]:
     return cards
 
 
-def _clear_stale_profile_lock():
-    """Firefox leaves .parentlock behind after a crash/kill, which blocks the
-    next launch with 'A copy of Camoufox is already open'. Safe to remove when
-    no camoufox process is actually running."""
-    import subprocess
-    from pathlib import Path
-
-    if subprocess.run(["pgrep", "-if", "camoufox"], capture_output=True).returncode != 0:
-        for name in (".parentlock", "parent.lock", "lock"):
-            Path(PROFILE_DIR, name).unlink(missing_ok=True)
-
-
 def _alert_checkpoint(page):
     try:
         from tg.notify import alert
@@ -305,6 +295,11 @@ def _alert_checkpoint(page):
 # Drip pacing: gap between keyword searches, in seconds (5-10 minutes).
 # Full 13-keyword pass takes ~75-110 min of a 3h cycle.
 KEYWORD_GAP = (300, 600)
+
+# Gap between pages of the SAME search. Deliberately much shorter than
+# KEYWORD_GAP: a person clicking through to page 2 does it in seconds, and
+# minute-long gaps between pages would look stranger than none.
+PAGE_GAP = (6, 18)
 
 
 class SessionDead(RuntimeError):
@@ -379,40 +374,63 @@ def _run_specs(cf_kwargs, specs, tpr, gap, guest, seen):
         for i, spec in enumerate(specs):
             kw, geo, wt = spec["kw"], spec["geo"], spec["wt"]
             scope = "durham" if geo != GEO_US else "remote-us"
-            print(f"[{i + 1}/{len(specs)}] searching: {kw} ({scope})")
-            page.goto(
-                search_url(kw, tpr=tpr or SWEEP_TPR, geo=geo, wt=wt),
-                wait_until="domcontentloaded",
-            )
-            human_pause(4, 9)
+            fresh, prev_ids = [], set()
 
-            # In guest mode the signup wall means "blocked", not "logged out";
-            # in authenticated mode any checkpoint aborts the sweep.
-            if is_checkpoint(page, guest=guest):
-                _alert_checkpoint(page)
-                return
-
-            # Authenticated mode is the only one where f_WT (remote/on-site) is
-            # honoured — the guest endpoint accepts the parameter and ignores
-            # it. Losing the session mid-pass therefore changes what every
-            # later result means, so the pass stops there instead of quietly
-            # continuing with unfiltered cards.
-            wt_applied = not guest
-            if not guest and not _session_alive(page):
-                raise SessionDead(
-                    f"session dropped mid-pass (after {i} of {len(specs)} "
-                    "keywords) — remaining results would not be "
-                    "workplace-filtered. Re-run: python -m linkedin.session"
+            # Pages within one search, newest first. Without this the sweep
+            # only ever read the first 25 results and dropped the rest.
+            for pg in range(MAX_PAGES_PER_SEARCH):
+                head = f"[{i + 1}/{len(specs)}] searching: {kw} ({scope})"
+                print(head if pg == 0 else f"{head} — page {pg + 1}")
+                page.goto(
+                    search_url(kw, tpr=tpr or SWEEP_TPR, geo=geo, wt=wt,
+                               start=pg * PAGE_SIZE),
+                    wait_until="domcontentloaded",
                 )
+                # Paging through results is a seconds-apart action; only the
+                # first load of a new search gets the longer settle.
+                if pg == 0:
+                    human_pause(4, 9)
+                else:
+                    human_pause(*PAGE_GAP)
 
-            _browse_like_a_human(page)
+                # In guest mode the signup wall means "blocked", not "logged
+                # out"; in authenticated mode any checkpoint aborts the sweep.
+                if is_checkpoint(page, guest=guest):
+                    _alert_checkpoint(page)
+                    return
 
-            fresh = []
-            for c in extract_job_cards(page):
-                if c["external_id"] not in seen:
-                    seen.add(c["external_id"])
-                    c["wt_filtered"] = wt_applied
-                    fresh.append(c)
+                # Authenticated mode is the only one where f_WT (remote/on-site)
+                # is honoured — the guest endpoint accepts the parameter and
+                # ignores it. Losing the session mid-pass therefore changes what
+                # every later result means, so the pass stops there instead of
+                # quietly continuing with unfiltered cards.
+                if not guest and not _session_alive(page):
+                    raise SessionDead(
+                        f"session dropped mid-pass (after {i} of {len(specs)} "
+                        "keywords) — remaining results would not be "
+                        "workplace-filtered. Re-run: python -m linkedin.session"
+                    )
+
+                _browse_like_a_human(page)
+
+                cards = extract_job_cards(page)
+                for c in cards:
+                    if c["external_id"] not in seen:
+                        seen.add(c["external_id"])
+                        c["wt_filtered"] = not guest
+                        fresh.append(c)
+
+                # Two independent stop signals, because either alone is wrong.
+                # A short page is the last page — LinkedIn fills to PAGE_SIZE
+                # otherwise, so this ends most searches without paying for an
+                # extra load. And an out-of-range offset re-serves the final
+                # page rather than an empty one, so a page identical to the one
+                # before it is also the end.
+                ids = {c["external_id"] for c in cards}
+                if len(cards) < PAGE_SIZE or not ids or ids == prev_ids:
+                    break
+                prev_ids = ids
+
             yield kw, fresh
 
             # Drip gap before the next search (none after the last).
