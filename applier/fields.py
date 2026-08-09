@@ -76,6 +76,22 @@ def enumerate_fields(page) -> list[dict]:
                     best = own;
                 }
             }
+            // A custom dropdown renders its own placeholder as the only text
+            // inside the wrapper, so the walk above yields "Select..." — the
+            // widget's resting state, not the question. Look backwards for the
+            // preceding prompt text instead.
+            const junk = t => !t || /^(select\\.*|choose\\.*|--.*)$/i.test(t);
+            if (junk(best)) {
+                let n = el;
+                for (let i = 0; i < 4 && n; i++, n = n.parentElement) {
+                    let sib = n.previousElementSibling;
+                    while (sib) {
+                        const t = clean(sib.innerText);
+                        if (t && t.length >= 6 && t.length < 160 && !junk(t)) return t;
+                        sib = sib.previousElementSibling;
+                    }
+                }
+            }
             return best || clean(el.name || el.placeholder || '');
         };
 
@@ -151,7 +167,21 @@ def enumerate_fields(page) -> list[dict]:
             if (texts.length < 2 || texts.length > 5) continue;
             if (new Set(texts).size !== texts.length) continue;
 
-            const label = labelFor(box).slice(0, 160);
+            // labelFor walks up and keeps the SHORTEST text, which for a button
+            // group is the group's own buttons ("YES NO", "Male Female ...").
+            // That is the answer, not the question, and it made every such
+            // field unresolvable. Strip the option text off each candidate
+            // ancestor and keep the first remainder that still reads as a
+            // question.
+            let label = '';
+            let anc = box;
+            for (let i = 0; i < 4 && anc; i++, anc = anc.parentElement) {
+                let t = clean(anc.innerText);
+                if (!t || t.length > 400) continue;
+                for (const opt of texts) t = t.split(opt).join(' ');
+                t = clean(t);
+                if (t.length >= 6) { label = t.slice(0, 160); break; }
+            }
             if (!label) continue;
             const key = `${label}|buttongroup`;
             if (seen.has(key)) continue;
@@ -409,10 +439,15 @@ def ai_compose(field: dict, context: dict | None):
     ctx = context or {}
     prompt = (
         "Write this job-application answer as the candidate, in first person.\n"
-        "HARD RULES: use ONLY facts present in CANDIDATE DATA below. Invent no "
-        "employer, school, title, date, metric, or skill. No placeholders like "
+        "Stating interest, motivation, and what the candidate wants to learn is "
+        "exactly what these questions ask for — that is not a factual claim and "
+        "is allowed.\n"
+        "HARD RULES: every CONCRETE claim — employer, school, title, date, "
+        "metric, technology, skill — must appear in CANDIDATE RESUME below. "
+        "Never claim experience the résumé does not show. No placeholders like "
         "[Company]. 2-4 sentences, plain and specific, no flattery padding.\n"
-        "If CANDIDATE DATA cannot support an honest answer, set confident=false.\n\n"
+        "Set confident=false ONLY if the résumé is so unrelated to the role "
+        "that no honest answer is possible.\n\n"
         f"CANDIDATE RESUME:\n{RESUME}\n\n"
         f"CANDIDATE LOGISTICS:\n{PROFILE}\n\n"
         f"ROLE: {ctx.get('title', '')} at {ctx.get('company', '')}\n"
