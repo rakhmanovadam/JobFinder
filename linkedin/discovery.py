@@ -197,13 +197,35 @@ def extract_job_cards(page) -> list[dict]:
     """Parse visible job cards. Tolerant of DOM drift: each card wrapped in
     try/except, cards without a jobId are skipped, returns parsed subset."""
     cards = []
-    # LinkedIn has cycled between these list-item containers; try both.
+    # The authenticated list is virtualised and renders after the shell, so
+    # counting immediately returned 0 and silently fell through to the guest
+    # parser — which then also returned 0, making a working search look empty.
+    # Wait for the list before deciding it isn't there.
+    AUTH_SEL = ("li[data-occludable-job-id], div.job-card-container, "
+                "li.scaffold-layout__list-item")
+    try:
+        page.wait_for_selector(AUTH_SEL, timeout=12000)
+    except Exception:
+        pass
+
     items = page.locator("li[data-occludable-job-id]")
     if items.count() == 0:
         items = page.locator("div.job-card-container")
+    if items.count() == 0:
+        items = page.locator("li.scaffold-layout__list-item")
     total = items.count()
     if total == 0:
-        # Logged-out / guest SERP is served instead — parse that shape.
+        # Genuinely no authenticated list. Either the guest SERP was served, or
+        # the search really has no results — say which, because they mean very
+        # different things.
+        body = ""
+        try:
+            body = page.inner_text("body") or ""
+        except Exception:
+            pass
+        if re.search(r"\bNo matching jobs found\b|\b0 results\b", body, re.I):
+            print("search returned no results (authenticated)")
+            return []
         return extract_guest_cards(page)
 
     for i in range(total):
