@@ -25,8 +25,10 @@ candidate does not have, omit it — never claim it. Every organization name,
 title, date, number, and skill in your output must appear verbatim in the
 SOURCE. Rephrasing prose is allowed; changing facts is not.
 
-Also produce a 3-sentence tailored note explaining the candidate's fit, drawing
-only on real source material.
+Also produce a 3-sentence note, written by the candidate in FIRST PERSON ("I
+built", "I want to"), saying why he fits this job. Draw only on real source
+material. The résumé `summary` and `bullets` stay in résumé style with no
+pronouns, as résumés are written; the `note` is a message from him.
 
 """ + NATURAL_VOICE
 

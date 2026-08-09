@@ -200,8 +200,12 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
 
             # What went into the form, for the confirmation card. Kept as data
             # so the Telegram layer can render it without re-deriving anything.
+            # Kept WHOLE. Truncating here meant the emailed receipt could only
+            # ever show the first 70 characters of an essay answer, so there
+            # was no record of what was actually written under your name. The
+            # Telegram card shortens for display; the record does not.
             summary = [
-                {"label": e["field"]["label"][:70], "value": str(e["value"])[:70]}
+                {"label": e["field"]["label"], "value": str(e["value"])}
                 for e in answers.values()
             ]
             if dry_run:

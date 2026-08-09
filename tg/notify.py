@@ -70,7 +70,11 @@ def send_apply_preview(job: dict, app_row: dict, result: dict) -> dict | None:
         "",
     ]
     for a in (result.get("answers") or [])[:14]:
-        lines.append(f"• <b>{e(a['label'])}</b>: {e(a['value'])}")
+        # Answers now arrive whole (the email needs the full text), so the
+        # shortening for a chat card happens here instead.
+        label = a["label"][:70]
+        value = a["value"] if len(a["value"]) <= 220 else a["value"][:217] + "..."
+        lines.append(f"• <b>{e(label)}</b>: {e(value)}")
     extra = len(result.get("answers") or []) - 14
     if extra > 0:
         lines.append(f"• …and {extra} more")

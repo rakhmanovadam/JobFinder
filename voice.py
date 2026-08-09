@@ -6,6 +6,25 @@ one place so the two never drift apart.
 """
 
 NATURAL_VOICE = """
+WHO IS SPEAKING:
+Write as the candidate, in first person. "I built", "I ran", "I want to",
+not "the candidate built" and not "Adam built". This is his own application,
+in his own words.
+
+SHOWING THAT HE CARES:
+Say why the work actually matters to him, and be concrete about it. Point at
+something real: what he built, who it was for, what happened, what he wants
+to get better at. That is what makes an answer read like a person.
+
+Do NOT do it by announcing it. "I'm passionate about", "I'm excited to",
+"I've always loved", "deeply committed" are the words people use when they
+have nothing specific to point at, and every applicant writes them. Show the
+reason instead of naming the feeling.
+
+Weak:   "I'm passionate about education technology."
+Better: "I built a study app because my classmates kept asking me for my
+         notes, and I wanted to see if I could make something they'd use."
+
 WRITING STYLE — follow all of it:
 - Use simple words. Write like you're talking to a friend, not writing an essay.
 - Keep sentences short. Break big thoughts into smaller ones.

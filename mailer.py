@@ -90,32 +90,56 @@ def build_body(job: dict, app: dict, result: dict, when: datetime) -> str:
         _row("Outcome", result.get("detail") or result.get("status") or "?"),
     ]
 
+    # Every answer in full. A short answer reads fine on one line; a written
+    # answer needs its own block, because the whole point of the receipt is
+    # being able to see exactly what was said under your name.
     answers = result.get("answers") or []
     if answers:
-        items = "".join(
-            f'<li><span style="color:#666">{a["label"]}</span>: {a["value"]}</li>'
-            for a in answers
-        )
+        short = [a for a in answers if len(str(a["value"])) <= 90]
+        long_ = [a for a in answers if len(str(a["value"])) > 90]
+        parts = []
+        if short:
+            parts.append(
+                '<table style="border-collapse:collapse">'
+                + "".join(_row(a["label"], str(a["value"])) for a in short)
+                + "</table>"
+            )
+        for a in long_:
+            body = str(a["value"]).replace("\n", "<br>")
+            parts.append(
+                f'<p style="margin:16px 0 4px;color:#666">{a["label"]}</p>'
+                f'<div style="margin:0;padding:12px 14px;background:#f6f6f6;'
+                f'border-radius:6px;line-height:1.6;white-space:pre-wrap">{body}</div>'
+            )
         answers_html = (
-            '<h3 style="margin:24px 0 8px">What was filled in</h3>'
-            f'<ul style="margin:0;padding-left:18px;line-height:1.6">{items}</ul>'
+            '<h3 style="margin:24px 0 8px">Everything I submitted</h3>'
+            + "".join(parts)
         )
     else:
         answers_html = ""
 
     note = tailored.get("note") or app.get("cover_note") or ""
     note_html = (
-        f'<h3 style="margin:24px 0 8px">Note sent with it</h3>'
-        f'<p style="margin:0;line-height:1.6">{note}</p>' if note else ""
+        f'<h3 style="margin:24px 0 8px">Note I sent with it</h3>'
+        f'<div style="margin:0;padding:12px 14px;background:#f6f6f6;'
+        f'border-radius:6px;line-height:1.6;white-space:pre-wrap">{note}</div>'
+        if note else ""
+    )
+    summary_txt = tailored.get("summary") or ""
+    summary_html = (
+        f'<h3 style="margin:24px 0 8px">Résumé summary I used</h3>'
+        f'<div style="margin:0;padding:12px 14px;background:#f6f6f6;'
+        f'border-radius:6px;line-height:1.6;white-space:pre-wrap">{summary_txt}</div>'
+        if summary_txt else ""
     )
 
     return (
         '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
         'font-size:15px;color:#111;max-width:640px">'
-        f'<h2 style="margin:0 0 4px">Applied to {job.get("title", "")}</h2>'
+        f'<h2 style="margin:0 0 4px">I applied to {job.get("title", "")}</h2>'
         f'<p style="margin:0 0 18px;color:#666">{job.get("company", "")}</p>'
         f'<table style="border-collapse:collapse">{"".join(rows)}</table>'
-        f"{answers_html}{note_html}"
+        f"{answers_html}{note_html}{summary_html}"
         '<p style="margin:24px 0 0;color:#888;font-size:13px">'
         "The résumé attached is the exact file that was submitted.</p>"
         "</div>"
