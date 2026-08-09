@@ -44,8 +44,16 @@ MAX_LEASE_SECONDS = 4 * 3600
 _HZ = os.sysconf("SC_CLK_TCK")
 
 
+# Firefox's own profile locks. `lock` is a symlink to <host>:+<pid>, so once
+# the browser exits it dangles — and copytree fails outright on a dangling
+# symlink, which took out every apply that ran after an unclean shutdown.
+# Never copied, always dropped.
+LOCK_NAMES = ("lock", ".parentlock", "parent.lock")
+_IGNORE_LOCKS = shutil.ignore_patterns(*LOCK_NAMES)
+
+
 def _drop_stale_locks(path: str) -> None:
-    for name in ("lock", ".parentlock"):
+    for name in LOCK_NAMES:
         with contextlib.suppress(OSError):
             os.remove(os.path.join(path, name))
 
@@ -193,7 +201,7 @@ def heal_from_backup() -> bool:
     print("!! li_at missing from the live profile but present in the backup — "
           "restoring (something overwrote the cookie jar locally)")
     shutil.rmtree(PROFILE_DIR, ignore_errors=True)
-    shutil.copytree(BACKUP_DIR, PROFILE_DIR)
+    shutil.copytree(BACKUP_DIR, PROFILE_DIR, ignore=_IGNORE_LOCKS)
     _drop_stale_locks(PROFILE_DIR)
     return True
 
@@ -204,7 +212,7 @@ def back_up() -> None:
         return
     tmp = BACKUP_DIR + ".new"
     shutil.rmtree(tmp, ignore_errors=True)
-    shutil.copytree(PROFILE_DIR, tmp)
+    shutil.copytree(PROFILE_DIR, tmp, ignore=_IGNORE_LOCKS)
     shutil.rmtree(BACKUP_DIR, ignore_errors=True)
     os.rename(tmp, BACKUP_DIR)
 
@@ -285,7 +293,7 @@ def reader():
     tmp = tempfile.mkdtemp(prefix="li_lease_")
     dest = os.path.join(tmp, "profile")
     try:
-        shutil.copytree(PROFILE_DIR, dest)
+        shutil.copytree(PROFILE_DIR, dest, ignore=_IGNORE_LOCKS)
         _drop_stale_locks(dest)
         yield dest
     finally:
