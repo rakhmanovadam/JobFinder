@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from telegram import Update, InputFile
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes,
+    MessageHandler, filters,
 )
 
 from config import TELEGRAM_BOT_TOKEN, MAX_APPLIES_PER_DAY, MAX_APPLIES_PER_HOUR
@@ -67,6 +68,30 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
         await q.message.reply_text(text, parse_mode="HTML")
+
+    # Answer to a question the applier asked. Stored by label, so it applies to
+    # every future form that asks the same thing.
+    if action == "ans":
+        from tg.ask import clear_pending, load_pending, store_answer
+
+        qid, _, idx = app_id.partition(":")
+        ptr = await asyncio.to_thread(load_pending, qid)
+        mid = (ptr or {}).get("message_id")
+        pending = await asyncio.to_thread(load_pending, mid) if mid else None
+        if not pending:
+            await respond("That question expired — tap ✅ on the job again.")
+            return
+        try:
+            choice = pending["options"][int(idx)]
+        except (ValueError, IndexError):
+            await respond("Couldn't read that choice.")
+            return
+        await asyncio.to_thread(store_answer, pending, choice)
+        await asyncio.to_thread(clear_pending, mid)
+        await asyncio.to_thread(clear_pending, qid)
+        await respond(f"✅ Saved: <b>{html.escape(pending['label'])}</b> = "
+                      f"{html.escape(choice)}")
+        return
 
     app = get_app(app_id)
     if not app:
@@ -156,6 +181,23 @@ async def run_preview(app_id: str, q):
         await asyncio.to_thread(send_apply_preview, job, app, result)
         return
 
+    # Blocked on questions we have no answer for: ask, and remember the reply
+    # so the same field doesn't stop the next form too.
+    blocked = result.get("blocked")
+    if blocked:
+        from tg.ask import ask_blocked
+
+        n = await asyncio.to_thread(ask_blocked, blocked, job, app_id)
+        if n:
+            get_db().table("applications").update(
+                {"status": "pending", "error": result.get("detail")}
+            ).eq("id", app_id).execute()
+            await q.message.reply_text(
+                f"❓ {n} question(s) I can't answer for {job['company']}. "
+                "Answer them and tap ✅ again — I'll remember for next time."
+            )
+            return
+
     # Couldn't fill it — hand the user the link rather than guessing.
     get_db().table("applications").update(
         {"status": "needs_manual", "error": result.get("detail")}
@@ -211,6 +253,40 @@ async def run_applier(app_id: str, q):
         )
 
 
+async def on_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """A reply to a force-reply question is the answer to that question."""
+    from tg.ask import clear_pending, load_pending, store_answer
+
+    msg = update.message
+    if not msg or not msg.reply_to_message or not (msg.text or "").strip():
+        return
+    mid = msg.reply_to_message.message_id
+    pending = await asyncio.to_thread(load_pending, mid)
+    if not pending:
+        return
+    answer = msg.text.strip()
+    await asyncio.to_thread(store_answer, pending, answer)
+    await asyncio.to_thread(clear_pending, mid)
+    await msg.reply_text(
+        f"✅ Saved: {pending['label']}\nI won't ask again. Tap ✅ on the job to retry."
+    )
+
+
+async def cmd_answers(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """See what the bot has learned, so a wrong answer can be spotted."""
+    rows = (
+        get_db().table("field_answers").select("field_label,answer,source")
+        .eq("source", "asked").execute().data
+    )
+    if not rows:
+        await update.message.reply_text("Nothing asked yet.")
+        return
+    lines = [f"• {r['field_label'][:50]} = {str(r['answer'])[:60]}" for r in rows[:40]]
+    await update.message.reply_text(
+        f"Answers you've given ({len(rows)}):\n" + "\n".join(lines)
+    )
+
+
 async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     set_control("paused", True)
     await update.message.reply_text("⏸ paused — no sweeps, no applies")
@@ -247,6 +323,8 @@ def main():
     app.add_handler(CommandHandler("pause", cmd_pause))
     app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("answers", cmd_answers))
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, on_reply))
     print("bot running — ctrl-c to stop")
     app.run_polling()
 

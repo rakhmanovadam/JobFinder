@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from config import OPENAI_API_KEY, TAILOR_MODEL
 from usage import record
+from voice import NATURAL_VOICE
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -25,7 +26,9 @@ title, date, number, and skill in your output must appear verbatim in the
 SOURCE. Rephrasing prose is allowed; changing facts is not.
 
 Also produce a 3-sentence tailored note explaining the candidate's fit, drawing
-only on real source material."""
+only on real source material.
+
+""" + NATURAL_VOICE
 
 
 class Experience(BaseModel):

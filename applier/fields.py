@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from config import OPENAI_API_KEY, FIELD_MODEL
 from db import get_db
 from usage import record
+from voice import NATURAL_VOICE
 
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE = yaml.safe_load((ROOT / "profile.yaml").read_text())
@@ -524,6 +525,7 @@ def ai_compose(field: dict, context: dict | None):
         "[Company]. 2-4 sentences, plain and specific, no flattery padding.\n"
         "Set confident=false ONLY if the résumé is so unrelated to the role "
         "that no honest answer is possible.\n\n"
+        f"{NATURAL_VOICE}\n\n"
         f"CANDIDATE RESUME:\n{RESUME}\n\n"
         f"CANDIDATE LOGISTICS:\n{PROFILE}\n\n"
         f"ROLE: {ctx.get('title', '')} at {ctx.get('company', '')}\n"

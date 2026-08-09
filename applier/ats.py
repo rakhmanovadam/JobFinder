@@ -189,6 +189,9 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                     "status": "needs_manual",
                     "detail": f"unanswered required field(s): {labels}",
                     "screenshot": str(shot_path),
+                    # The caller asks about these over Telegram and stores the
+                    # replies, so the same field never blocks a second form.
+                    "blocked": blocked,
                 }
 
             filled = sum(_fill_field(page, n, e) for n, e in answers.items())
