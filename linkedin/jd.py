@@ -7,6 +7,8 @@ import re
 
 import httpx
 
+from config import PROXY_URL
+
 GUEST_JD = (
     "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
 )
@@ -33,9 +35,12 @@ def _strip_html(fragment: str) -> str:
 def fetch_jd(job_id: str, timeout: float = 20.0) -> str | None:
     """Returns the job description text, or None if unavailable."""
     try:
+        # Route through the same proxy the browser uses — otherwise this,
+        # the highest-volume LinkedIn caller, egresses from the host IP.
         r = httpx.get(
             GUEST_JD.format(job_id=job_id),
             headers=HEADERS, timeout=timeout, follow_redirects=True,
+            proxy=PROXY_URL,
         )
         if r.status_code != 200:
             return None

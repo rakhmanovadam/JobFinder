@@ -31,6 +31,22 @@ if _proxy_server:
 else:
     PROXY = None
 
+# Same proxy as a URL, for the plain-HTTP callers (httpx) that never touch
+# Camoufox. Without this, JD fetches would hit LinkedIn straight from the
+# host IP while the browser traffic went through the proxy — the noisier
+# half of our LinkedIn traffic arriving from a datacenter.
+if PROXY:
+    _scheme, _, _hostport = PROXY["server"].partition("://")
+    if PROXY.get("username"):
+        PROXY_URL = (
+            f"{_scheme}://{quote(PROXY['username'], safe='')}:"
+            f"{quote(PROXY.get('password', ''), safe='')}@{_hostport}"
+        )
+    else:
+        PROXY_URL = PROXY["server"]
+else:
+    PROXY_URL = None
+
 # USD per 1M tokens, per model. Set the real rates from your OpenAI dashboard —
 # a model absent here is logged with token counts but priced at 0, and the daily
 # digest reports how many such calls it saw rather than quietly under-reporting.
