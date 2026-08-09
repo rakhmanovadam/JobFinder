@@ -16,7 +16,9 @@ from camoufox.sync_api import Camoufox
 from config import PROXY, PROFILE_DIR
 from linkedin.discovery import _clear_stale_profile_lock
 
-APPLY_BTN = re.compile(r"(?i)apply|continue")
+# re.I flag, never an inline (?i) — get_by_role serialises the pattern into a
+# selector string and an inline flag makes it unparseable at runtime.
+APPLY_BTN = re.compile(r"apply|continue", re.I)
 
 
 def _dest_from_href(href: str | None) -> str | None:

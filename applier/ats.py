@@ -15,12 +15,18 @@ from applier.fields import enumerate_fields, hydrate_combobox_options, resolve_f
 ROOT = Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "screenshots"
 
-SUBMIT_RE = re.compile(r"(?i)^(submit|submit application|apply|send application)$")
+# Case-insensitivity MUST come from the re.I flag, not an inline (?i): these
+# patterns are handed to get_by_role, which serialises them into a selector
+# string, and an inline flag makes that selector unparseable at runtime
+# ("InvalidSelectorError"). The submit lookup below carried this defect, so
+# every real submission would have thrown before clicking anything.
+SUBMIT_RE = re.compile(r"^(submit|submit application|apply|send application)$", re.I)
 
 # Decline non-essential cookies — never "Accept all".
 DECLINE_RE = re.compile(
-    r"(?i)^(decline all|decline|reject all|reject|necessary only|"
-    r"only necessary|essential only)$"
+    r"^(decline all|decline|reject all|reject|necessary only|"
+    r"only necessary|essential only)$",
+    re.I,
 )
 
 
