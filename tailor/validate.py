@@ -105,6 +105,33 @@ def _in_source(phrase: str, source_tokens: set[str]) -> bool:
     )
 
 
+# A number is only a fabricated metric if it is claimed as the candidate's
+# achievement. These sentences say the opposite — that he does NOT have
+# something, or they quote what the job asks for — and flagging them punished
+# the model for being honest about gaps.
+NEGATION_RE = re.compile(
+    r"(?i)\b(do(es)?\s+not|did\s+not|don'?t|doesn'?t|no\b|not\b|lacks?|"
+    r"without|absent|missing|request(ed|s)?|require(d|s|ment)?|"
+    r"asks?\s+for|seeks?|looking\s+for|posting\s+lists?)\b"
+)
+
+# Numbers glued to letters are identifiers, not measurements: AS9100 is an
+# aerospace standard, 8D a problem-solving method, GPT-4 a model name.
+STANDALONE_NUM_RE = re.compile(r"(?<![A-Za-z0-9])\d[\d,]*\.?\d*\+?%?(?![A-Za-z0-9])")
+
+SENTENCE_RE = re.compile(r"[^.!?]+[.!?]?")
+
+
+def _claimed_numbers(text: str) -> list[str]:
+    """Numbers the text asserts as the candidate's own."""
+    out: list[str] = []
+    for sentence in SENTENCE_RE.findall(text or ""):
+        if NEGATION_RE.search(sentence):
+            continue
+        out += [n.strip() for n in STANDALONE_NUM_RE.findall(sentence)]
+    return out
+
+
 def build_index(master: dict) -> dict:
     orgs, titles, dates, skills, numbers = set(), set(), set(), set(), set()
 
@@ -175,7 +202,7 @@ def validate(tailored, master: dict) -> tuple[bool, list[str]]:
 
     # The summary and note are prose, but numbers in them must still trace.
     for field in ("summary", "note"):
-        for n in extract_numbers(getattr(tailored, field, "")):
+        for n in _claimed_numbers(getattr(tailored, field, "")):
             if _num_key(n) not in idx["numbers"]:
                 problems.append(f"fabricated metric '{n}' in {field}")
 
