@@ -1,0 +1,17 @@
+[Unit]
+# LinkedIn detects headless Firefox: it serves the logged-out SERP (where f_WT
+# is silently ignored) and revokes li_at while leaving li_rm behind. Running
+# the same code headful on a virtual display keeps the session alive and makes
+# the workplace filter work. So this display is a hard dependency of every
+# LinkedIn job, not a convenience for watching over VNC.
+Description=Xvfb virtual display :99 (LinkedIn browsing must not be headless)
+After=network.target
+
+[Service]
+User=ubuntu
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1440x900x24 -nolisten tcp
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

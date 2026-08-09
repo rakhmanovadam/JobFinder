@@ -1,12 +1,15 @@
 [Unit]
 Description=JobFinder Telegram bot (approve/skip loop)
-After=network-online.target
+After=network-online.target xvfb.service
+Requires=xvfb.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/JobFinder
+# Headless Firefox gets the guest SERP and loses li_at.
+Environment="DISPLAY=:99"
 ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m tg.callbacks
 
 # Equivalent of launchd KeepAlive: a dead bot loses taps, so always come back.

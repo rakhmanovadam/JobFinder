@@ -48,7 +48,7 @@ def resolve_apply_url(job_id: str, timeout_ms: int = 30000) -> str | None:
     _clear_stale_profile_lock()
     try:
         with Camoufox(
-            headless=True, humanize=True, geoip=True, proxy=PROXY,
+            headless=False, humanize=True, geoip=True, proxy=PROXY,
             persistent_context=True, user_data_dir=PROFILE_DIR,
         ) as browser:
             page = browser.new_page()

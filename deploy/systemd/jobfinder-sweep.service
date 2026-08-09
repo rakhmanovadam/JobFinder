@@ -1,12 +1,15 @@
 [Unit]
 Description=JobFinder LinkedIn drip sweep (one pass)
-After=network-online.target
+After=network-online.target xvfb.service
+Requires=xvfb.service
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 User=ubuntu
 WorkingDirectory=/home/ubuntu/JobFinder
+# Headless Firefox gets the guest SERP and loses li_at.
+Environment="DISPLAY=:99"
 ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m orchestrator
 
 # A pass is 13 keywords with 5-10 min gaps: ~75-110 min. Allow 3h, then kill.

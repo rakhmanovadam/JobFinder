@@ -110,6 +110,23 @@ def check_guest():
     record("linkedin-guest", PASS, f"http 200, ~{n} cards — discovery can run")
 
 
+@step("display")
+def check_display():
+    """Headless is not an option for LinkedIn, so a missing display is a hard
+    failure, not a cosmetic one."""
+    import os
+    import subprocess
+    disp = os.environ.get("DISPLAY", "")
+    up = subprocess.run(["pgrep", "-f", "Xvfb :99"], capture_output=True).returncode == 0
+    if not up:
+        return record("display", FAIL, "Xvfb :99 is not running",
+                      "sudo systemctl enable --now xvfb.service")
+    if not disp:
+        return record("display", WARN, "Xvfb :99 up, but DISPLAY unset in this shell",
+                      "services set DISPLAY=:99 themselves; export it for manual runs")
+    record("display", PASS, f"Xvfb :99 up, DISPLAY={disp}")
+
+
 @step("linkedin-session")
 def check_session():
     from linkedin.discovery import _profile_has_live_session
@@ -249,7 +266,7 @@ def check_applications():
                f"{c}x {msg}" for msg, c in top) if top else "")
 
 
-STAGES = [check_config, check_proxy, check_db, check_guest, check_session,
+STAGES = [check_config, check_proxy, check_db, check_guest, check_display, check_session,
           check_jd, check_render, check_telegram, check_email, check_openai,
           check_tailor, check_applications]
 

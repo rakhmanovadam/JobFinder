@@ -117,7 +117,7 @@ def extract_guest_cards(page) -> list[dict]:
     return cards
 
 
-def _profile_has_live_session(headless: bool = True) -> bool:
+def _profile_has_live_session(headless: bool = False) -> bool:
     """Cheap pre-flight: does the stored profile still hold a valid li_at?
 
     Reads the cookie jar first (no request at all), and only opens a page when
@@ -279,7 +279,7 @@ class SessionDead(RuntimeError):
 
 
 def sweep(
-    headless: bool = True,
+    headless: bool = False,
     keywords: list[str] | None = None,
     tpr: str | None = None,
     gap: tuple = KEYWORD_GAP,
@@ -370,7 +370,7 @@ def sweep(
                 human_pause(*gap)
 
 
-def discover(headless: bool = True, **kwargs) -> list[dict]:
+def discover(headless: bool = False, **kwargs) -> list[dict]:
     """Flat-list wrapper around sweep() for quick CLI runs."""
     all_cards = []
     for _, cards in sweep(headless=headless, **kwargs):
@@ -381,5 +381,5 @@ def discover(headless: bool = True, **kwargs) -> list[dict]:
 
 if __name__ == "__main__":
     # CLI test run uses short gaps so a manual spike doesn't take 2 hours.
-    for card in discover(headless=True, gap=(12, 35)):
+    for card in discover(headless=False, gap=(12, 35)):
         print(json.dumps(card, ensure_ascii=False))

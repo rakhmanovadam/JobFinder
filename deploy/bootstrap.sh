@@ -17,7 +17,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
   python3-venv python3-pip \
   nodejs npm \
   libreoffice-writer fonts-liberation \
-  xvfb
+  xvfb x11vnc
 
 echo "==> repo"
 if [ ! -d "$REPO_DIR/.git" ]; then
@@ -53,8 +53,12 @@ if [ "$missing" -ne 0 ]; then
 fi
 
 echo "==> systemd units"
-sudo cp deploy/systemd/jobfinder-*.service deploy/systemd/jobfinder-*.timer /etc/systemd/system/
+sudo cp deploy/systemd/jobfinder-*.service deploy/systemd/jobfinder-*.timer \
+        deploy/systemd/xvfb.service deploy/systemd/x11vnc.service /etc/systemd/system/
 sudo systemctl daemon-reload
+# LinkedIn must never be browsed headless, so the display comes up first.
+sudo systemctl enable --now xvfb.service
+sudo systemctl enable --now x11vnc.service
 sudo systemctl enable --now jobfinder-bot.service
 sudo systemctl enable --now jobfinder-sweep.timer
 sudo systemctl enable --now jobfinder-draft.timer

@@ -1,0 +1,15 @@
+[Unit]
+# So the login can be done by hand over an SSH tunnel. Bound to localhost
+# only: reaching it requires -L 5901:localhost:5900 through SSH.
+Description=x11vnc on :99, localhost only (for the manual LinkedIn login)
+After=xvfb.service
+Requires=xvfb.service
+
+[Service]
+User=ubuntu
+ExecStart=/usr/bin/x11vnc -display :99 -localhost -nopw -forever -shared -quiet
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
