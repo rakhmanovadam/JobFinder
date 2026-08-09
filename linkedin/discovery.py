@@ -161,13 +161,30 @@ def _profile_has_live_session(headless: bool = False) -> bool:
         return False
 
 
+# A redirect here is decisive and cannot be contradicted by the DOM.
+_LOGGED_OUT_URL = re.compile(r"/uas/login|/authwall|/checkpoint|/signup", re.I)
+
+
 def _session_alive(page) -> bool:
-    """Authenticated chrome. #global-nav is stale in LinkedIn's current DOM —
-    the 'Me' menu is the reliable marker."""
+    """Is this page being served to a logged-in account?
+
+    URL first. Matching on the text 'Me' also matched LinkedIn's logged-out
+    chrome, so a /uas/login page reported as a live session — the exact false
+    positive the SessionDead guard exists to prevent, and it would let a whole
+    pass run unfiltered. It also went the other way on /feed, reporting dead
+    while every search right after it was fine.
+
+    Positive proof is an element only an authenticated page renders: the job
+    list itself, or the account photo in the nav.
+    """
     try:
+        if _LOGGED_OUT_URL.search(page.url or ""):
+            return False
         return (
-            page.locator("button:has-text('Me')").count() > 0
-            or page.locator("#global-nav, .global-nav").count() > 0
+            page.locator(
+                "li[data-occludable-job-id], div.job-card-container").count() > 0
+            or page.locator("img.global-nav__me-photo").count() > 0
+            or page.locator(".global-nav__me").count() > 0
         )
     except Exception:
         return False
@@ -296,10 +313,12 @@ def _alert_checkpoint(page):
 # Full 13-keyword pass takes ~75-110 min of a 3h cycle.
 KEYWORD_GAP = (300, 600)
 
-# Gap between pages of the SAME search. Deliberately much shorter than
-# KEYWORD_GAP: a person clicking through to page 2 does it in seconds, and
-# minute-long gaps between pages would look stranger than none.
-PAGE_GAP = (6, 18)
+# Gap between pages of the SAME search. Shorter than KEYWORD_GAP, because
+# clicking to page 2 is not a new search — but not the 6-18s this started at.
+# Four pages that fast is a scraping cadence, and the session was revoked
+# during the first pass that used it. Someone reading a page of results before
+# moving on takes closer to a minute.
+PAGE_GAP = (25, 70)
 
 
 class SessionDead(RuntimeError):

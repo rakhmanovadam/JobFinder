@@ -133,9 +133,10 @@ MAX_SPECS_PER_PASS = int(os.environ.get("MAX_SPECS_PER_PASS", "12"))
 # so every search silently threw away everything past the first 25 — a search
 # reporting 38 results only ever reached the database as 25.
 PAGE_SIZE = 25
-# 4 pages = up to 100 per search. The 6h time window rarely holds that many, so
-# most searches stop on their own well before the cap.
-MAX_PAGES_PER_SEARCH = int(os.environ.get("MAX_PAGES_PER_SEARCH", "4"))
+# 3 pages = up to 75 per search, still 3x what page-one-only collected. Held
+# down deliberately: deep paging is the part of this that looks least like a
+# person job-hunting, and a revoked session costs more than the extra results.
+MAX_PAGES_PER_SEARCH = int(os.environ.get("MAX_PAGES_PER_SEARCH", "3"))
 
 
 def search_url(
