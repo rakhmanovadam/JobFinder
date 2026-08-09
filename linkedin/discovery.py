@@ -17,6 +17,7 @@ from camoufox.sync_api import Camoufox
 from config import (
     PROXY,
     PROFILE_DIR,
+    MAX_SPECS_PER_PASS,
     SEARCH_SPECS,
     SWEEP_TPR,
     GEO_US,
@@ -334,9 +335,12 @@ def sweep(
     else:
         specs = list(SEARCH_SPECS)
     random.shuffle(specs)
-    # Occasionally drop a keyword or two — humans aren't exhaustive.
-    if len(specs) > 3 and random.random() < 0.35:
-        specs = specs[: len(specs) - random.randint(1, 2)]
+    # Cap the pass. Gaps are 5-10 min, so every spec every time would overrun
+    # the 3-hour cadence and start overlapping itself. Shuffling first means
+    # the full list is still covered across the day's slots, and a shorter,
+    # variable pass looks less like a scheduled job than an exhaustive one.
+    if len(specs) > MAX_SPECS_PER_PASS:
+        specs = specs[:random.randint(MAX_SPECS_PER_PASS - 2, MAX_SPECS_PER_PASS)]
 
     # Authenticated-only by request. The guest SERP accepts f_WT and ignores
     # it, so a guest pass returns on-site jobs labelled as if they had been

@@ -88,21 +88,30 @@ WT_ONSITE_REMOTE = "1%2C2"       # on-site OR remote
 # nothing; dedupe eats the overlap.
 SWEEP_TPR = "r21600"
 
-# Per-keyword search scope:
-#   lab/research work must be physically near Durham -> local geo, on-site OR remote
-#   everything else is remote-friendly -> nationwide, remote only
+# Search scope. _DURHAM_LOCAL is the shape of the link Adam supplied:
+# geoId=101915197 with f_WT=1,2. It matches the actual constraint better than
+# a nationwide remote-only search does, because it returns BOTH remote roles
+# and on-site roles near home, and nothing on-site anywhere else.
+#
+# _REMOTE_US stays for the roles most likely to be advertised as remote to the
+# whole country, so those are not lost by scoping everything to one metro.
 _REMOTE_US = {"geo": GEO_US, "wt": WT_REMOTE}
 _DURHAM_LOCAL = {"geo": GEO_DURHAM, "wt": WT_ONSITE_REMOTE}
 
 SEARCH_SPECS = [
+    {"kw": "entry level software engineer", **_DURHAM_LOCAL},
     {"kw": "entry level software engineer", **_REMOTE_US},
-    {"kw": "junior web developer", **_REMOTE_US},
+    {"kw": "junior web developer", **_DURHAM_LOCAL},
+    {"kw": "qa engineer", **_DURHAM_LOCAL},
     {"kw": "qa engineer", **_REMOTE_US},
-    {"kw": "software engineer in test", **_REMOTE_US},
+    {"kw": "software engineer in test", **_DURHAM_LOCAL},
+    {"kw": "ai engineer", **_DURHAM_LOCAL},
     {"kw": "ai engineer", **_REMOTE_US},
+    {"kw": "data analyst", **_DURHAM_LOCAL},
     {"kw": "data analyst", **_REMOTE_US},
     {"kw": "learning designer", **_REMOTE_US},
     {"kw": "curriculum developer", **_REMOTE_US},
+    {"kw": "social media manager", **_DURHAM_LOCAL},
     {"kw": "social media manager", **_REMOTE_US},
     {"kw": "growth marketing", **_REMOTE_US},
     {"kw": "sales development representative", **_REMOTE_US},
@@ -114,6 +123,11 @@ SEARCH_SPECS = [
 ]
 
 SEARCH_KEYWORDS = [s["kw"] for s in SEARCH_SPECS]
+
+# Searches per pass. 5-10 min between each, so the whole list every time would
+# run past the 3-hour cadence; the list is shuffled, so 8 slots a day still
+# cover everything.
+MAX_SPECS_PER_PASS = int(os.environ.get("MAX_SPECS_PER_PASS", "12"))
 
 
 def search_url(
