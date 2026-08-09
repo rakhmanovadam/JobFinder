@@ -179,6 +179,19 @@ async def run_preview(app_id: str, q):
 
     if result.get("status") == "preview":
         await asyncio.to_thread(send_apply_preview, job, app, result)
+        # Anything going in blank gets asked about, even though it did not
+        # block the submission — an optional question left empty is still a
+        # worse application, and the answer is reusable on every later form.
+        missing = result.get("missing")
+        if missing:
+            from tg.ask import ask_blocked
+
+            n = await asyncio.to_thread(ask_blocked, missing, job, app_id)
+            if n:
+                await q.message.reply_text(
+                    f"❓ {n} field(s) I couldn't fill on this one. Answer them "
+                    "and they'll be used here and on every form after."
+                )
         return
 
     # Blocked on questions we have no answer for: ask, and remember the reply

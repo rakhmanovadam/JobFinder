@@ -183,7 +183,7 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                 return {"status": "needs_manual", "detail": "no form fields found"}
             hydrate_combobox_options(page, fields)
 
-            answers, blocked = resolve_form(
+            answers, blocked, unanswered = resolve_form(
                 fields,
                 context={
                     "company": job.get("company", ""),
@@ -204,7 +204,15 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                     "blocked": blocked,
                 }
 
-            filled = sum(_fill_field(page, n, e) for n, e in answers.items())
+            # Track WHICH fills failed, not just how many. A field we had an
+            # answer for but could not enter is left blank on the real form,
+            # and reporting only a count meant nobody ever found out which.
+            filled, could_not_fill = 0, []
+            for n, e in answers.items():
+                if _fill_field(page, n, e):
+                    filled += 1
+                else:
+                    could_not_fill.append(e["field"])
 
             page.screenshot(path=str(shot_path), full_page=True)
 
@@ -218,9 +226,14 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                 {"label": e["field"]["label"], "value": str(e["value"])}
                 for e in answers.values()
             ]
+            # Everything that will go in blank: optional questions nothing
+            # could answer, plus answers the widget refused. Asked about over
+            # Telegram so the next form has them.
+            missing = unanswered + could_not_fill
             if dry_run:
                 return {
                     "status": "preview",
+                    "missing": missing,
                     "detail": f"filled {filled}/{len(answers)} field(s), "
                               f"résumé uploaded: {uploaded}",
                     "screenshot": str(shot_path),
@@ -259,6 +272,7 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                 # emailed receipt can record what was actually sent.
                 "answers": summary,
                 "url": url,
+                "missing": missing,
             }
         except Exception as e:
             return {"status": "failed", "detail": f"{type(e).__name__}: {e}"}

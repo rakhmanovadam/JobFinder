@@ -53,6 +53,7 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
     shot = SHOTS / f"easy-{job['external_id']}-{stamp}.png"
 
     answers_all: dict[str, dict] = {}
+    missing_all: list[dict] = []
     from linkedin.discovery import _clear_stale_profile_lock
 
     _clear_stale_profile_lock()
@@ -90,7 +91,7 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
                 fields = enumerate_fields(page, root=MODAL)
                 if fields:
                     hydrate_combobox_options(page, fields)
-                    answers, blocked = resolve_form(
+                    answers, blocked, unanswered = resolve_form(
                         fields,
                         context={"company": job.get("company", ""),
                                  "title": job.get("title", ""),
@@ -108,8 +109,10 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
                     from applier.ats import _fill_field
 
                     for name, entry in answers.items():
-                        _fill_field(page, name, entry)
+                        if not _fill_field(page, name, entry):
+                            missing_all.append(entry["field"])
                         answers_all[f"{step}:{name}"] = entry
+                    missing_all.extend(unanswered)
 
                 page.screenshot(path=str(shot))
 
@@ -120,7 +123,7 @@ def apply_easy(job: dict, app: dict, dry_run: bool = True) -> dict:
                         for e in answers_all.values()
                     ]
                     if dry_run:
-                        return {"status": "preview",
+                        return {"status": "preview", "missing": missing_all,
                                 "detail": f"Easy Apply ready — {len(summary)} field(s) "
                                           f"filled over {step + 1} step(s)",
                                 "screenshot": str(shot), "answers": summary, "url": url}

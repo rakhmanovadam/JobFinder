@@ -555,9 +555,18 @@ def ai_compose(field: dict, context: dict | None):
     return None, None
 
 
-def resolve_form(fields: list[dict], context: dict | None = None) -> tuple[dict, list[dict]]:
-    """Returns (answers by field name, unresolved REQUIRED fields)."""
-    answers, blocked = {}, []
+def resolve_form(
+    fields: list[dict], context: dict | None = None
+) -> tuple[dict, list[dict], list[dict]]:
+    """Returns (answers, unresolved REQUIRED fields, unresolved OPTIONAL fields).
+
+    Optional fields used to be dropped without a word. That is silent data
+    loss on a real application: a portfolio link or a "how did you hear about
+    us" left blank because nothing knew the answer, and nobody was ever asked
+    for it. They are reported separately from the required ones so the caller
+    can ask about them without treating them as blocking.
+    """
+    answers, blocked, unanswered = {}, [], []
     for f in fields:
         if f["type"] == "file":
             continue
@@ -588,4 +597,6 @@ def resolve_form(fields: list[dict], context: dict | None = None) -> tuple[dict,
                 remember_answer(f, val, source)
         elif f["required"]:
             blocked.append(f)
-    return answers, blocked
+        else:
+            unanswered.append(f)
+    return answers, blocked, unanswered

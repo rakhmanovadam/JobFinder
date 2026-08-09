@@ -71,6 +71,14 @@ def already_asked(field: dict) -> bool:
 
 def ask_field(field: dict, job: dict, app_id: str) -> bool:
     """Send one question. Returns True if it went out."""
+    from applier.fields import _cacheable, _never_auto
+
+    # No point asking what cannot be stored, and never ask for the things that
+    # must not be automated at all (SSN, bank details) — those stay manual.
+    if not _cacheable(field) or _never_auto(field.get("label", "")):
+        return False
+    if field.get("type") == "file":
+        return False
     if already_asked(field):
         return False
 

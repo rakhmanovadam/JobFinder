@@ -92,6 +92,18 @@ def send_apply_preview(job: dict, app_row: dict, result: dict) -> dict | None:
     extra = len(result.get("answers") or []) - 14
     if extra > 0:
         lines.append(f"• …and {extra} more")
+
+    # Say plainly what is going in blank, rather than leaving it to be inferred
+    # from a "filled 4/6" count.
+    missing = result.get("missing") or []
+    if missing:
+        lines.append("")
+        lines.append(f"⚠️ <b>{len(missing)} field(s) left blank</b> — asking you now:")
+        for m in missing[:6]:
+            lines.append(f"   · {e(m['label'][:60])}")
+        if len(missing) > 6:
+            lines.append(f"   · …and {len(missing) - 6} more")
+
     lines.append("")
     lines.append("Submit this application?")
 
