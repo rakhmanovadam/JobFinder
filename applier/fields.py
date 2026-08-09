@@ -373,7 +373,53 @@ def ai_resolve(field: dict):
     return None, None
 
 
-def resolve_form(fields: list[dict]) -> tuple[dict, list[dict]]:
+ESSAY_RE = re.compile(
+    r"(?i)\b(why|what|how|tell us|describe|explain|interest(ed)? in|"
+    r"excites?|motivat|cover letter|in your own words)\b"
+)
+
+
+def ai_compose(field: dict, context: dict | None):
+    """Layer 3b — open-ended prose ("Why do you want to join X?").
+
+    ai_resolve is a *mapper*: it is told never to invent, so an essay prompt
+    always comes back not-confident and the whole application goes to
+    needs_manual. These questions have no answer sitting in profile.yaml —
+    they have to be written. Grounded strictly in the résumé, and the user
+    still sees every word on the Telegram card before anything is submitted.
+    """
+    if _never_auto(field["label"]) or field["options"]:
+        return None, None
+
+    ctx = context or {}
+    prompt = (
+        "Write this job-application answer as the candidate, in first person.\n"
+        "HARD RULES: use ONLY facts present in CANDIDATE DATA below. Invent no "
+        "employer, school, title, date, metric, or skill. No placeholders like "
+        "[Company]. 2-4 sentences, plain and specific, no flattery padding.\n"
+        "If CANDIDATE DATA cannot support an honest answer, set confident=false.\n\n"
+        f"CANDIDATE DATA:\n{PROFILE}\n\n"
+        f"ROLE: {ctx.get('title', '')} at {ctx.get('company', '')}\n"
+        f"JOB DESCRIPTION (context only, not facts about the candidate):\n"
+        f"{(ctx.get('jd') or '')[:3000]}\n\n"
+        f"QUESTION: {field['label']}"
+    )
+    try:
+        r = client.responses.parse(
+            model=FIELD_MODEL,
+            input=[{"role": "user", "content": prompt}],
+            text_format=Mapped,
+        )
+        record(FIELD_MODEL, r, "field_essay")
+        out = r.output_parsed
+        if out.confident and out.value:
+            return out.value.strip(), "ai_essay"
+    except Exception as e:
+        print("   ai_compose failed:", e)
+    return None, None
+
+
+def resolve_form(fields: list[dict], context: dict | None = None) -> tuple[dict, list[dict]]:
     """Returns (answers by field name, unresolved REQUIRED fields)."""
     answers, blocked = {}, []
     for f in fields:
@@ -386,6 +432,10 @@ def resolve_form(fields: list[dict]) -> tuple[dict, list[dict]]:
             val, source = deterministic(f)
         if val is None:
             val, source = ai_resolve(f)
+        # Essays only after the factual lanes miss: they are per-company, so
+        # they are neither cached nor reusable.
+        if val is None and (f["type"] == "textarea" or ESSAY_RE.search(f["label"])):
+            val, source = ai_compose(f, context)
 
         if val is not None:
             answers[f["name"] or f["label"]] = {"value": val, "source": source, "field": f}

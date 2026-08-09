@@ -103,13 +103,23 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(2500)
 
-            # Some boards hide the form behind an Apply button.
-            for label in ("Apply for this job", "Apply now", "Apply"):
-                btn = page.get_by_role("button", name=re.compile(f"^{label}$", re.I))
-                if btn.count():
-                    btn.first.click()
-                    page.wait_for_timeout(2000)
-                    break
+            # Some boards hide the form behind an Apply button. Others (Workable)
+            # render the form inline AND keep a decorative "Apply for this job"
+            # button that is present but never actionable — clicking it blocked
+            # for the full 30s default and failed the whole application. So:
+            # skip the click entirely when a form is already on the page, and
+            # give any click we do attempt a short, non-fatal timeout.
+            if page.locator("input:visible, select:visible, textarea:visible").count() < 3:
+                for label in ("Apply for this job", "Apply now", "Apply"):
+                    btn = page.get_by_role("button", name=re.compile(f"^{label}$", re.I))
+                    if not btn.count():
+                        continue
+                    try:
+                        btn.first.click(timeout=5000)
+                        page.wait_for_timeout(2000)
+                        break
+                    except Exception:
+                        continue
 
             # Upload the résumé FIRST: boards like Ashby run an "autofill from
             # resume" pass that overwrites whatever is already in the inputs, so
@@ -127,7 +137,14 @@ def apply_to_job(job: dict, app: dict, dry_run: bool = False) -> dict:
                 return {"status": "needs_manual", "detail": "no form fields found"}
             hydrate_combobox_options(page, fields)
 
-            answers, blocked = resolve_form(fields)
+            answers, blocked = resolve_form(
+                fields,
+                context={
+                    "company": job.get("company", ""),
+                    "title": job.get("title", ""),
+                    "jd": job.get("jd_text", ""),
+                },
+            )
 
             if blocked:
                 labels = ", ".join(b["label"][:40] for b in blocked[:4])
