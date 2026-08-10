@@ -12,8 +12,15 @@ WorkingDirectory=/home/ubuntu/JobFinder
 Environment="DISPLAY=:99"
 ExecStart=/home/ubuntu/JobFinder/.venv/bin/python -m orchestrator
 
-# A pass is 13 keywords with 5-10 min gaps: ~75-110 min. Allow 3h, then kill.
-TimeoutStartSec=10800
+# A pass is up to 12 searches with 5-10 min gaps, each now walking up to 3
+# result pages 25-70s apart: ~2.5h typical, ~3.2h worst. The old 3h budget was
+# sized before pagination and killed the 07:15 pass mid-run. 3h45m stays under
+# profile_lease.MAX_LEASE_SECONDS (4h), so systemd always gives up before the
+# lease gets broken out from under a live sweep.
+TimeoutStartSec=13500
+# systemd's TERM is a clean shutdown for Firefox (cookies flush on exit); only
+# escalate to KILL if it truly hangs.
+TimeoutStopSec=60
 
 StandardOutput=journal
 StandardError=journal
