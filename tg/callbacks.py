@@ -99,6 +99,20 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     job = get_job(app["job_id"]) or {}
 
+    # Old cards for since-blocked companies are still tappable in the chat
+    # history. Refuse them here no matter which button was hit.
+    from filter import company_blocked
+
+    if company_blocked(job.get("company", "")):
+        get_db().table("applications").update({"status": "skipped"}).eq(
+            "id", app_id
+        ).execute()
+        await respond(
+            f"🚫 {html.escape(job.get('company', ''))} is on the blocked "
+            "list (needs its own account) — card retired."
+        )
+        return
+
     if action == "no":
         get_db().table("applications").update({"status": "skipped"}).eq(
             "id", app_id

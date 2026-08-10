@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from db import get_db
+from filter import company_blocked
 from linkedin.jd import fetch_jd
 from linkedin.workplace import LOCAL
 from tailor.openai_client import tailor
@@ -37,7 +38,12 @@ def pending_jobs(limit: int) -> list[dict]:
         a["job_id"]
         for a in db.table("applications").select("job_id").execute().data
     }
-    return [j for j in jobs if j["id"] not in existing][:limit]
+    # Second line of defence behind store_cards: rows matched before a company
+    # entered BLOCKED_COMPANIES must not draft either.
+    return [
+        j for j in jobs
+        if j["id"] not in existing and not company_blocked(j["company"])
+    ][:limit]
 
 
 def draft_one(job: dict) -> str:
